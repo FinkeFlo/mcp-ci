@@ -9,6 +9,10 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
+  "mcpServer": {
+    "command": "npx",
+    "args": ["tsx", "src/index.ts"]
+  },
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.28.0",
