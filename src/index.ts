@@ -1,20 +1,37 @@
+import { readFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import * as z from "zod/v4";
+import { TenantManager } from "./core/tenant-manager.js";
+import { tenantModule } from "./modules/tenant/tools.js";
+import type { TenantConfig, ModuleContext, Module } from "./core/types.js";
 
-const server = new McpServer({
-  name: "mcp-ci",
-  version: "0.1.0",
-});
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
-server.registerTool("ping", { description: "Check if MCP server is running", inputSchema: z.object({}) }, async () => {
-  return { content: [{ type: "text" as const, text: "pong - mcp-ci is running" }] };
-});
+function loadTenantConfig(): TenantConfig {
+  const configPath = resolve(__dirname, "../config/tenants.json");
+  const raw = readFileSync(configPath, "utf-8");
+  return JSON.parse(raw) as TenantConfig;
+}
+
+const config = loadTenantConfig();
+const tenantManager = new TenantManager(config);
+
+const server = new McpServer({ name: "mcp-ci", version: "0.1.0" });
+const context: ModuleContext = { tenantManager };
+const modules: Module[] = [tenantModule];
+
+for (const mod of modules) {
+  mod.register(server, context);
+}
 
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("mcp-ci server running on stdio");
+  console.error(
+    `mcp-ci server running on stdio (tenant: ${tenantManager.getActiveTenantKey()})`
+  );
 }
 
 main().catch((error) => {
