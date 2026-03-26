@@ -1,0 +1,276 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import * as z from "zod/v4";
+import type { ModuleContext, Module } from "../../core/types.js";
+import type {
+  MessageProcessingLog,
+  CustomHeaderProperty,
+  AdapterAttribute,
+} from "./types.js";
+import { buildListMessagesParams, buildGetErrorsParams } from "./queries.js";
+
+const API_PATH = "/api/v1/MessageProcessingLogs";
+
+function formatMessage(m: MessageProcessingLog): string {
+  const lines = [
+    `MessageGuid: ${m.MessageGuid}`,
+    `Status: ${m.Status}`,
+    `Flow: ${m.IntegrationFlowName ?? "n/a"}`,
+    `Sender: ${m.Sender ?? "n/a"} -> Receiver: ${m.Receiver ?? "n/a"}`,
+    `Start: ${m.LogStart ?? "n/a"} | End: ${m.LogEnd ?? "n/a"}`,
+  ];
+  if (m.AlternateWebLink) lines.push(`Link: ${m.AlternateWebLink}`);
+  return lines.join("\n");
+}
+
+export const monitoringModule: Module = {
+  name: "monitoring",
+  register(server: McpServer, context: ModuleContext) {
+    // --- list_messages ---
+    server.registerTool(
+      "list_messages",
+      {
+        description:
+          "List message processing logs from SAP CPI with optional filters",
+        inputSchema: z.object({
+          status: z
+            .string()
+            .optional()
+            .describe(
+              "Filter by status (COMPLETED, FAILED, PROCESSING, RETRY, etc.)"
+            ),
+          flowName: z
+            .string()
+            .optional()
+            .describe("Filter by integration flow name"),
+          from: z
+            .string()
+            .optional()
+            .describe("Start time (ISO 8601, e.g. 2026-03-26T00:00:00Z)"),
+          to: z
+            .string()
+            .optional()
+            .describe("End time (ISO 8601)"),
+          correlationId: z
+            .string()
+            .optional()
+            .describe("Filter by correlation ID"),
+          applicationMessageId: z
+            .string()
+            .optional()
+            .describe("Filter by application message ID"),
+          top: z
+            .number()
+            .optional()
+            .describe("Max results (default 50, max 200)"),
+        }),
+      },
+      async (filters) => {
+        try {
+          const params = buildListMessagesParams(filters);
+          const messages =
+            await context.odataClient.getCollection<MessageProcessingLog>(
+              API_PATH,
+              params
+            );
+          if (messages.length === 0) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: "No messages found matching the given filters.",
+                },
+              ],
+            };
+          }
+          const text = messages.map(formatMessage).join("\n---\n");
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Found ${messages.length} message(s):\n\n${text}`,
+              },
+            ],
+          };
+        } catch (error) {
+          return {
+            isError: true,
+            content: [
+              { type: "text" as const, text: (error as Error).message },
+            ],
+          };
+        }
+      }
+    );
+
+    // --- get_message ---
+    server.registerTool(
+      "get_message",
+      {
+        description:
+          "Get details of a single message processing log by MessageGuid, including custom headers, adapter attributes, and error info for failed messages",
+        inputSchema: z.object({
+          messageGuid: z.string().describe("The MessageGuid of the message"),
+        }),
+      },
+      async ({ messageGuid }) => {
+        try {
+          const message = await context.odataClient.getEntity<
+            MessageProcessingLog & {
+              CustomHeaderProperties: { results: CustomHeaderProperty[] };
+              AdapterAttributes: { results: AdapterAttribute[] };
+            }
+          >(`${API_PATH}('${messageGuid}')`, {
+            $expand: "CustomHeaderProperties,AdapterAttributes",
+          });
+
+          const sections: string[] = [formatMessage(message)];
+
+          // Custom header properties
+          const headers = message.CustomHeaderProperties?.results ?? [];
+          if (headers.length > 0) {
+            sections.push(
+              "Custom Headers:\n" +
+                headers
+                  .map((h) => `  ${h.Name ?? h.Id}: ${h.Value ?? "n/a"}`)
+                  .join("\n")
+            );
+          }
+
+          // Adapter attributes
+          const attrs = message.AdapterAttributes?.results ?? [];
+          if (attrs.length > 0) {
+            sections.push(
+              "Adapter Attributes:\n" +
+                attrs
+                  .map((a) => `  ${a.Name ?? a.Id}: ${a.Value ?? "n/a"}`)
+                  .join("\n")
+            );
+          }
+
+          // Error info for failed/retry messages
+          if (
+            message.Status === "FAILED" ||
+            message.Status === "RETRY"
+          ) {
+            try {
+              const errorText = await context.odataClient.getValue(
+                `${API_PATH}('${messageGuid}')/ErrorInformation/$value`
+              );
+              sections.push(`Error Information:\n${errorText}`);
+            } catch {
+              sections.push("Error Information: (could not retrieve)");
+            }
+          }
+
+          return {
+            content: [
+              { type: "text" as const, text: sections.join("\n\n") },
+            ],
+          };
+        } catch (error) {
+          return {
+            isError: true,
+            content: [
+              { type: "text" as const, text: (error as Error).message },
+            ],
+          };
+        }
+      }
+    );
+
+    // --- get_errors ---
+    server.registerTool(
+      "get_errors",
+      {
+        description:
+          "Get recent failed messages grouped by integration flow, with error counts and sample errors",
+        inputSchema: z.object({
+          from: z
+            .string()
+            .optional()
+            .describe(
+              "Start time (ISO 8601). Defaults to 1 hour ago."
+            ),
+        }),
+      },
+      async (filters) => {
+        try {
+          const params = buildGetErrorsParams(filters);
+          const messages =
+            await context.odataClient.getCollection<MessageProcessingLog>(
+              API_PATH,
+              params
+            );
+
+          if (messages.length === 0) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: "No failed messages found in the given time range.",
+                },
+              ],
+            };
+          }
+
+          // Group by IntegrationFlowName
+          const groups = new Map<
+            string,
+            { count: number; latest: MessageProcessingLog }
+          >();
+          for (const msg of messages) {
+            const key = msg.IntegrationFlowName ?? "(unknown)";
+            const existing = groups.get(key);
+            if (existing) {
+              existing.count++;
+            } else {
+              groups.set(key, { count: 1, latest: msg });
+            }
+          }
+
+          const lines: string[] = [
+            `Total failed messages: ${messages.length}`,
+            `Affected flows: ${groups.size}`,
+            "",
+          ];
+
+          for (const [flowName, { count, latest }] of groups) {
+            lines.push(`Flow: ${flowName}`);
+            lines.push(`  Failures: ${count}`);
+            lines.push(`  Latest: ${latest.LogEnd ?? "n/a"}`);
+            lines.push(`  MessageGuid: ${latest.MessageGuid}`);
+            if (latest.AlternateWebLink) {
+              lines.push(`  Link: ${latest.AlternateWebLink}`);
+            }
+            lines.push("");
+          }
+
+          // Fetch sample error text from the first failed message
+          const sampleGuid = messages[0].MessageGuid;
+          try {
+            const errorText = await context.odataClient.getValue(
+              `${API_PATH}('${sampleGuid}')/ErrorInformation/$value`
+            );
+            lines.push(`Sample error (from ${sampleGuid}):`);
+            lines.push(errorText);
+          } catch {
+            // Error text not available, skip
+          }
+
+          return {
+            content: [
+              { type: "text" as const, text: lines.join("\n") },
+            ],
+          };
+        } catch (error) {
+          return {
+            isError: true,
+            content: [
+              { type: "text" as const, text: (error as Error).message },
+            ],
+          };
+        }
+      }
+    );
+  },
+};
