@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { TenantManager } from "./core/tenant-manager.js";
+import { Auth } from "./core/auth.js";
+import { ODataClient } from "./core/odata-client.js";
 import { tenantModule } from "./modules/tenant/tools.js";
 import type { TenantConfig, ModuleContext, Module } from "./core/types.js";
 
@@ -17,9 +19,11 @@ function loadTenantConfig(): TenantConfig {
 
 const config = loadTenantConfig();
 const tenantManager = new TenantManager(config);
+const auth = new Auth();
+const odataClient = new ODataClient(auth, tenantManager);
 
 const server = new McpServer({ name: "mcp-ci", version: "0.1.0" });
-const context: ModuleContext = { tenantManager };
+const context: ModuleContext = { tenantManager, odataClient };
 const modules: Module[] = [tenantModule];
 
 for (const mod of modules) {

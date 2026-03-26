@@ -1,4 +1,5 @@
 import type { TenantManager } from "./tenant-manager.js";
+import type { ODataClient } from "./odata-client.js";
 
 export interface Tenant {
   name: string;
@@ -20,4 +21,5 @@ export interface Module {
 
 export interface ModuleContext {
   tenantManager: TenantManager;
+  odataClient: ODataClient;
 }
