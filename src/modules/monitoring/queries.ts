@@ -1,12 +1,5 @@
 import type { ODataParams } from "../../core/odata-client.js";
-
-function escapeOData(value: string): string {
-  return value.replace(/'/g, "''");
-}
-
-function stripMilliseconds(iso: string): string {
-  return iso.replace(/\.\d{3}Z$/, "Z");
-}
+import { escapeOData, stripMilliseconds } from "../../core/odata-utils.js";
 
 const MPL_SELECT = [
   "MessageGuid",

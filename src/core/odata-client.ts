@@ -145,6 +145,51 @@ export class ODataClient {
     }
   }
 
+  async put(path: string, body: Record<string, unknown>): Promise<void> {
+    const tenant = this.tenantManager.getActiveTenant();
+    const token = await this.auth.getToken(tenant);
+    const csrfToken = await this.getCsrfToken();
+    const url = `${tenant.apiUrl}${path}`;
+
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (response.status === 403) {
+      this.csrfTokens.delete(tenant.clientId);
+      const newCsrfToken = await this.fetchCsrfToken();
+      const retryResponse = await fetch(url, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "X-CSRF-Token": newCsrfToken,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!retryResponse.ok) {
+        const errorText = await retryResponse.text();
+        throw new Error(this.formatError(retryResponse.status, errorText));
+      }
+      return;
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(this.formatError(response.status, errorText));
+    }
+  }
+
   async getCollection<T = Record<string, unknown>>(path: string, params?: ODataParams): Promise<T[]> {
     const json = await this.request(path, params);
     return json.d.results as T[];
