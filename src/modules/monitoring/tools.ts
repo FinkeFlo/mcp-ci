@@ -6,6 +6,7 @@ import type {
   CustomHeaderProperty,
   AdapterAttribute,
   MessageProcessingLogAttachment,
+  MessageStoreEntry,
 } from "./types.js";
 import { buildListMessagesParams, buildGetErrorsParams, buildCountParams } from "./queries.js";
 
@@ -424,6 +425,81 @@ export const monitoringModule: Module = {
               {
                 type: "text" as const,
                 text: `Found ${attachments.length} attachment(s):\n\n${lines.join("\n---\n")}`,
+              },
+            ],
+          };
+        } catch (error) {
+          return {
+            isError: true,
+            content: [
+              { type: "text" as const, text: (error as Error).message },
+            ],
+          };
+        }
+      }
+    );
+    // --- get_message_store_entries ---
+    server.registerTool(
+      "get_message_store_entries",
+      {
+        description:
+          "List message store entries for a message processing log, or fetch the raw content of a specific entry",
+        inputSchema: z.object({
+          messageGuid: z.string().describe("The MessageGuid of the message"),
+          entryId: z
+            .string()
+            .optional()
+            .describe(
+              "If provided, fetches the raw $value content of this message store entry"
+            ),
+        }),
+      },
+      async ({ messageGuid, entryId }) => {
+        const MAX_SIZE = 100 * 1024;
+        try {
+          if (entryId) {
+            const content = await context.odataClient.getValue(
+              `${API_PATH}('${messageGuid}')/MessageStoreEntries('${entryId}')/$value`
+            );
+            const text =
+              content.length > MAX_SIZE
+                ? `${content.slice(0, MAX_SIZE)}\n\n[Truncated: original size ${content.length} chars]`
+                : content;
+            return {
+              content: [{ type: "text" as const, text }],
+            };
+          }
+
+          const entries =
+            await context.odataClient.getCollection<MessageStoreEntry>(
+              `${API_PATH}('${messageGuid}')/MessageStoreEntries`
+            );
+
+          if (entries.length === 0) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: "No message store entries found for this message.",
+                },
+              ],
+            };
+          }
+
+          const lines = entries.map((e) =>
+            [
+              `Id: ${e.Id}`,
+              `StoreId: ${e.MessageStoreId ?? "n/a"}`,
+              `Time: ${e.TimeStamp ?? "n/a"}`,
+              `HasAttachments: ${e.HasAttachments ?? "n/a"}`,
+            ].join("\n")
+          );
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Found ${entries.length} message store entr${entries.length === 1 ? "y" : "ies"}:\n\n${lines.join("\n---\n")}`,
               },
             ],
           };

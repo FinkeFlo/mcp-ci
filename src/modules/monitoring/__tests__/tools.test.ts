@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { monitoringModule } from "../tools.js";
 import type { ModuleContext } from "../../../core/types.js";
-import type { MessageProcessingLog, MessageProcessingLogAttachment } from "../types.js";
+import type { MessageProcessingLog, MessageProcessingLogAttachment, MessageStoreEntry } from "../types.js";
 
 function makeMpl(overrides: Partial<MessageProcessingLog> = {}): MessageProcessingLog {
   return {
@@ -260,6 +260,72 @@ describe("monitoring tools", () => {
         new Error("OData error (500): server error")
       );
       const result = await handlers.get("get_attachments")!({
+        messageGuid: "guid-1",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("OData error");
+    });
+  });
+
+  describe("get_message_store_entries", () => {
+    function makeEntry(
+      overrides: Partial<MessageStoreEntry> = {}
+    ): MessageStoreEntry {
+      return {
+        Id: "mse-1",
+        MessageGuid: "guid-1",
+        MessageStoreId: "store-abc",
+        TimeStamp: "2026-03-26T10:00:00Z",
+        HasAttachments: false,
+        ...overrides,
+      };
+    }
+
+    it("lists entries for a message", async () => {
+      mockODataClient.getCollection.mockResolvedValue([makeEntry()]);
+      const result = await handlers.get("get_message_store_entries")!({
+        messageGuid: "guid-1",
+      });
+      expect(result.content[0].text).toContain("Found 1 message store entry");
+      expect(result.content[0].text).toContain("Id: mse-1");
+      expect(result.content[0].text).toContain("StoreId: store-abc");
+    });
+
+    it("returns no message store entries when empty", async () => {
+      mockODataClient.getCollection.mockResolvedValue([]);
+      const result = await handlers.get("get_message_store_entries")!({
+        messageGuid: "guid-1",
+      });
+      expect(result.content[0].text).toContain("No message store entries found");
+    });
+
+    it("fetches $value when entryId is provided", async () => {
+      mockODataClient.getValue.mockResolvedValue("<entry>data</entry>");
+      const result = await handlers.get("get_message_store_entries")!({
+        messageGuid: "guid-1",
+        entryId: "mse-1",
+      });
+      const calledUrl: string = mockODataClient.getValue.mock.calls[0][0];
+      expect(calledUrl).toContain("MessageStoreEntries('mse-1')/$value");
+      expect(result.content[0].text).toBe("<entry>data</entry>");
+    });
+
+    it("truncates $value content larger than 100KB", async () => {
+      const bigContent = "y".repeat(100 * 1024 + 50);
+      mockODataClient.getValue.mockResolvedValue(bigContent);
+      const result = await handlers.get("get_message_store_entries")!({
+        messageGuid: "guid-1",
+        entryId: "mse-1",
+      });
+      expect(result.content[0].text).toContain("[Truncated:");
+      expect(result.content[0].text.length).toBeLessThan(bigContent.length);
+    });
+
+    it("returns error on failure", async () => {
+      mockODataClient.getCollection.mockRejectedValue(
+        new Error("OData error (500): server error")
+      );
+      const result = await handlers.get("get_message_store_entries")!({
         messageGuid: "guid-1",
       });
       expect(result.isError).toBe(true);
