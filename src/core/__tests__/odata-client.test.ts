@@ -189,5 +189,91 @@ describe("ODataClient", () => {
         "X-CSRF-Token": "new-csrf-token",
       });
     });
+
+    it("refreshes CSRF token on 403 for post()", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch")
+        // 1. Initial CSRF fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: new Headers({ "X-CSRF-Token": "old-token" }),
+        } as Response)
+        // 2. First POST → 403
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 403,
+          text: async () => "Forbidden",
+        } as Response)
+        // 3. CSRF re-fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: new Headers({ "X-CSRF-Token": "new-token" }),
+        } as Response)
+        // 4. Retry POST → success
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ d: { results: [] } }),
+        } as Response);
+
+      await client.post("/api/v1/activateExternalLogging");
+
+      // 1 CSRF fetch + 1 failed POST + 1 CSRF re-fetch + 1 retry POST = 4
+      expect(fetchSpy).toHaveBeenCalledTimes(4);
+
+      // Final POST should use the new CSRF token
+      expect((fetchSpy.mock.calls[3][1] as RequestInit).headers).toMatchObject({
+        "X-CSRF-Token": "new-token",
+      });
+    });
+
+    it("sends POST with CSRF token and JSON body", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch")
+        // 1. CSRF fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: new Headers({ "X-CSRF-Token": "csrf-token-value" }),
+        } as Response)
+        // 2. POST response
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ success: true }),
+        } as Response);
+
+      const result = await client.post("/api/v1/activateExternalLogging", { defaultLogLevel: "INFO" });
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+      // Second call: POST with CSRF token and JSON body
+      const [postUrl, postInit] = fetchSpy.mock.calls[1] as [string, RequestInit];
+      expect(postUrl).toBe("https://dev.example.com/api/v1/activateExternalLogging");
+      expect(postInit.method).toBe("POST");
+      expect((postInit.headers as Record<string, string>)["X-CSRF-Token"]).toBe("csrf-token-value");
+      expect((postInit.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
+      expect(postInit.body).toBe(JSON.stringify({ defaultLogLevel: "INFO" }));
+      expect(result).toEqual({ success: true });
+    });
+
+    it("sends POST without body", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch")
+        // 1. CSRF fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: new Headers({ "X-CSRF-Token": "csrf-token-value" }),
+        } as Response)
+        // 2. POST response
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+        } as Response);
+
+      await client.post("/api/v1/deactivateExternalLogging");
+
+      const [, postInit] = fetchSpy.mock.calls[1] as [string, RequestInit];
+      expect(postInit.method).toBe("POST");
+      expect(postInit.body).toBeUndefined();
+      expect((postInit.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
+    });
   });
 });

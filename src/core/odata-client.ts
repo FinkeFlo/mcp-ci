@@ -51,6 +51,60 @@ export class ODataClient {
     return csrfToken;
   }
 
+  async post(path: string, body?: Record<string, unknown>): Promise<any> {
+    const tenant = this.tenantManager.getActiveTenant();
+    const token = await this.auth.getToken(tenant);
+    const csrfToken = await this.getCsrfToken();
+    const url = `${tenant.apiUrl}${path}`;
+
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      "X-CSRF-Token": csrfToken,
+    };
+    if (body !== undefined) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (response.status === 403) {
+      // Invalidate cached token and retry once
+      this.csrfTokens.delete(tenant.clientId);
+      const newCsrfToken = await this.fetchCsrfToken();
+      const retryHeaders: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "X-CSRF-Token": newCsrfToken,
+      };
+      if (body !== undefined) {
+        retryHeaders["Content-Type"] = "application/json";
+      }
+      const retryResponse = await fetch(url, {
+        method: "POST",
+        headers: retryHeaders,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!retryResponse.ok) {
+        const errorText = await retryResponse.text();
+        throw new Error(this.formatError(retryResponse.status, errorText));
+      }
+      return retryResponse.json();
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(this.formatError(response.status, errorText));
+    }
+    return response.json();
+  }
+
   async delete(path: string): Promise<void> {
     const tenant = this.tenantManager.getActiveTenant();
     const token = await this.auth.getToken(tenant);
