@@ -1,0 +1,759 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import * as z from "zod/v4";
+import type { ModuleContext } from "../../../core/types.js";
+import type { KeystoreEntry, HistoryKeystoreEntry, Keystore } from "../types.js";
+import {
+  buildKeystoreEntriesPath,
+  buildKeystoreEntryPath,
+  buildSshKeyValuePath,
+  buildKeystorePath,
+  buildKeystoreSizePath,
+  buildKeystoreResourcesPath,
+  buildKeystoreResourcePath,
+  buildHistoryKeystoreEntriesPath,
+  buildHistoryKeystoreEntryPath,
+} from "../queries.js";
+
+function parseODataDate(value: string | null): string {
+  if (!value) return "n/a";
+  const match = value.match(/\/Date\((\d+)\)\//);
+  if (match) return new Date(parseInt(match[1])).toISOString();
+  return value;
+}
+
+function formatKeystoreEntrySummary(e: KeystoreEntry): string {
+  const lines: string[] = [];
+  lines.push(`Hexalias: ${e.Hexalias ?? "n/a"}`);
+  lines.push(`Alias: ${e.Alias ?? "n/a"}`);
+  lines.push(`KeyType: ${e.KeyType ?? "n/a"}`);
+  lines.push(`KeySize: ${e.KeySize ?? "n/a"}`);
+  lines.push(`Type: ${e.Type ?? "n/a"}`);
+  lines.push(`Validity: ${e.Validity ?? "n/a"}`);
+  lines.push(`ValidNotBefore: ${parseODataDate(e.ValidNotBefore)}`);
+  lines.push(`ValidNotAfter: ${parseODataDate(e.ValidNotAfter)}`);
+  lines.push(`Owner: ${e.Owner ?? "n/a"}`);
+  lines.push(`Status: ${e.Status ?? "n/a"}`);
+  return lines.join("\n");
+}
+
+function formatKeystoreEntryDetail(e: KeystoreEntry): string {
+  const lines: string[] = [];
+  lines.push(`Hexalias: ${e.Hexalias ?? "n/a"}`);
+  lines.push(`Alias: ${e.Alias ?? "n/a"}`);
+  lines.push(`KeyType: ${e.KeyType ?? "n/a"}`);
+  lines.push(`KeySize: ${e.KeySize ?? "n/a"}`);
+  lines.push(`Type: ${e.Type ?? "n/a"}`);
+  lines.push(`Validity: ${e.Validity ?? "n/a"}`);
+  lines.push(`ValidNotBefore: ${parseODataDate(e.ValidNotBefore)}`);
+  lines.push(`ValidNotAfter: ${parseODataDate(e.ValidNotAfter)}`);
+  lines.push(`SerialNumber: ${e.SerialNumber ?? "n/a"}`);
+  lines.push(`SignatureAlgorithm: ${e.SignatureAlgorithm ?? "n/a"}`);
+  lines.push(`EllipticCurve: ${e.EllipticCurve ?? "n/a"}`);
+  lines.push(`SubjectDN: ${e.SubjectDN ?? "n/a"}`);
+  lines.push(`IssuerDN: ${e.IssuerDN ?? "n/a"}`);
+  lines.push(`Version: ${e.Version ?? "n/a"}`);
+  lines.push(`FingerprintSha1: ${e.FingerprintSha1 ?? "n/a"}`);
+  lines.push(`FingerprintSha256: ${e.FingerprintSha256 ?? "n/a"}`);
+  lines.push(`FingerprintSha512: ${e.FingerprintSha512 ?? "n/a"}`);
+  lines.push(`Owner: ${e.Owner ?? "n/a"}`);
+  lines.push(`LastModifiedBy: ${e.LastModifiedBy ?? "n/a"}`);
+  lines.push(`LastModifiedTime: ${parseODataDate(e.LastModifiedTime)}`);
+  lines.push(`CreatedBy: ${e.CreatedBy ?? "n/a"}`);
+  lines.push(`CreatedTime: ${parseODataDate(e.CreatedTime)}`);
+  lines.push(`Status: ${e.Status ?? "n/a"}`);
+  return lines.join("\n");
+}
+
+function formatHistoryKeystoreEntry(e: HistoryKeystoreEntry): string {
+  const lines: string[] = [];
+  lines.push(`Hexalias: ${e.Hexalias ?? "n/a"}`);
+  lines.push(`Alias: ${e.Alias ?? "n/a"}`);
+  lines.push(`OriginalAlias: ${e.OriginalAlias ?? "n/a"}`);
+  lines.push(`KeyType: ${e.KeyType ?? "n/a"}`);
+  lines.push(`KeySize: ${e.KeySize ?? "n/a"}`);
+  lines.push(`Type: ${e.Type ?? "n/a"}`);
+  lines.push(`Validity: ${e.Validity ?? "n/a"}`);
+  lines.push(`ValidNotBefore: ${parseODataDate(e.ValidNotBefore)}`);
+  lines.push(`ValidNotAfter: ${parseODataDate(e.ValidNotAfter)}`);
+  lines.push(`ActivatedBy: ${e.ActivatedBy ?? "n/a"}`);
+  lines.push(`ActiveFrom: ${parseODataDate(e.ActiveFrom)}`);
+  lines.push(`DeactivatedBy: ${e.DeactivatedBy ?? "n/a"}`);
+  lines.push(`ActiveUntil: ${parseODataDate(e.ActiveUntil)}`);
+  lines.push(`ActivationSequenceNumber: ${e.ActivationSequenceNumber ?? "n/a"}`);
+  lines.push(`Owner: ${e.Owner ?? "n/a"}`);
+  lines.push(`Status: ${e.Status ?? "n/a"}`);
+  return lines.join("\n");
+}
+
+function formatHistoryKeystoreEntryDetail(e: HistoryKeystoreEntry): string {
+  const lines: string[] = [];
+  lines.push(`Hexalias: ${e.Hexalias ?? "n/a"}`);
+  lines.push(`Alias: ${e.Alias ?? "n/a"}`);
+  lines.push(`OriginalAlias: ${e.OriginalAlias ?? "n/a"}`);
+  lines.push(`KeyType: ${e.KeyType ?? "n/a"}`);
+  lines.push(`KeySize: ${e.KeySize ?? "n/a"}`);
+  lines.push(`Type: ${e.Type ?? "n/a"}`);
+  lines.push(`Validity: ${e.Validity ?? "n/a"}`);
+  lines.push(`ValidNotBefore: ${parseODataDate(e.ValidNotBefore)}`);
+  lines.push(`ValidNotAfter: ${parseODataDate(e.ValidNotAfter)}`);
+  lines.push(`SerialNumber: ${e.SerialNumber ?? "n/a"}`);
+  lines.push(`SignatureAlgorithm: ${e.SignatureAlgorithm ?? "n/a"}`);
+  lines.push(`EllipticCurve: ${e.EllipticCurve ?? "n/a"}`);
+  lines.push(`SubjectDN: ${e.SubjectDN ?? "n/a"}`);
+  lines.push(`IssuerDN: ${e.IssuerDN ?? "n/a"}`);
+  lines.push(`Version: ${e.Version ?? "n/a"}`);
+  lines.push(`FingerprintSha1: ${e.FingerprintSha1 ?? "n/a"}`);
+  lines.push(`FingerprintSha256: ${e.FingerprintSha256 ?? "n/a"}`);
+  lines.push(`FingerprintSha512: ${e.FingerprintSha512 ?? "n/a"}`);
+  lines.push(`Owner: ${e.Owner ?? "n/a"}`);
+  lines.push(`LastModifiedBy: ${e.LastModifiedBy ?? "n/a"}`);
+  lines.push(`LastModifiedTime: ${parseODataDate(e.LastModifiedTime)}`);
+  lines.push(`CreatedBy: ${e.CreatedBy ?? "n/a"}`);
+  lines.push(`CreatedTime: ${parseODataDate(e.CreatedTime)}`);
+  lines.push(`ActivatedBy: ${e.ActivatedBy ?? "n/a"}`);
+  lines.push(`ActiveFrom: ${parseODataDate(e.ActiveFrom)}`);
+  lines.push(`DeactivatedBy: ${e.DeactivatedBy ?? "n/a"}`);
+  lines.push(`ActiveUntil: ${parseODataDate(e.ActiveUntil)}`);
+  lines.push(`ActivationSequenceNumber: ${e.ActivationSequenceNumber ?? "n/a"}`);
+  lines.push(`Status: ${e.Status ?? "n/a"}`);
+  return lines.join("\n");
+}
+
+function formatKeystoreSummary(k: Keystore): string {
+  const lines: string[] = [];
+  lines.push(`Name: ${k.Name ?? "n/a"}`);
+  lines.push(`LastModifiedBy: ${k.LastModifiedBy ?? "n/a"}`);
+  lines.push(`LastModifiedTime: ${parseODataDate(k.LastModifiedTime)}`);
+  lines.push(`Size: ${k.Size ?? "n/a"}`);
+  return lines.join("\n");
+}
+
+const keystoreNameEnum = z.enum(["system", "backup_admin_system", "KeyRenewal"]);
+
+export function registerKeystoreTools(
+  server: McpServer,
+  context: ModuleContext
+) {
+  // ==========================================
+  // Group 1: Keystore Entries
+  // ==========================================
+
+  server.registerTool(
+    "list_keystore_entries",
+    {
+      description:
+        "List keystore entries from the specified keystore on the active SAP Cloud Integration tenant.",
+      inputSchema: z.object({
+        keystoreName: keystoreNameEnum
+          .default("system")
+          .describe("Name of the keystore (default: system)"),
+        select: z
+          .string()
+          .optional()
+          .describe("Comma-separated list of fields to return"),
+      }),
+    },
+    async ({ keystoreName, select }) => {
+      try {
+        const path = `${buildKeystoreEntriesPath()}?keystoreName=${encodeURIComponent(keystoreName)}`;
+        const entries =
+          await context.odataClient.getCollection<KeystoreEntry>(
+            path,
+            select ? { $select: select } : undefined
+          );
+        if (entries.length === 0) {
+          return {
+            content: [
+              { type: "text" as const, text: "No keystore entries found." },
+            ],
+          };
+        }
+        const text = entries.map(formatKeystoreEntrySummary).join("\n\n");
+        return {
+          content: [{ type: "text" as const, text }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "get_keystore_entry",
+    {
+      description:
+        "Get details of a specific keystore entry by its hex alias.",
+      inputSchema: z.object({
+        hexalias: z.string().describe("The hex-encoded alias of the keystore entry"),
+        keystoreName: keystoreNameEnum
+          .default("system")
+          .describe("Name of the keystore (default: system)"),
+      }),
+    },
+    async ({ hexalias, keystoreName }) => {
+      try {
+        const path = `${buildKeystoreEntryPath(hexalias)}?keystoreName=${encodeURIComponent(keystoreName)}`;
+        const entry =
+          await context.odataClient.getEntity<KeystoreEntry>(path);
+        const text = formatKeystoreEntryDetail(entry);
+        return {
+          content: [{ type: "text" as const, text }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "rename_keystore_entry",
+    {
+      description:
+        "Rename a keystore entry. Without confirm, shows a preview. Set confirm to true to execute.",
+      inputSchema: z.object({
+        hexalias: z.string().describe("The hex-encoded alias of the keystore entry to rename"),
+        newAlias: z.string().describe("The new alias name"),
+        confirm: z
+          .boolean()
+          .optional()
+          .describe("Set to true to actually rename the entry"),
+      }),
+    },
+    async ({ hexalias, newAlias, confirm }) => {
+      try {
+        if (!confirm) {
+          const lines: string[] = [];
+          lines.push("Keystore entry to rename:");
+          lines.push("");
+          lines.push(`Hexalias: ${hexalias}`);
+          lines.push(`New alias: ${newAlias}`);
+          lines.push("");
+          lines.push("Set confirm to true to proceed.");
+          return {
+            content: [{ type: "text" as const, text: lines.join("\n") }],
+          };
+        }
+        const path = `${buildKeystoreEntryPath(hexalias)}?renameAlias=${encodeURIComponent(newAlias)}`;
+        await context.odataClient.put(path, { Status: null });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Keystore entry '${hexalias}' renamed to '${newAlias}' successfully.`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "delete_keystore_entry",
+    {
+      description:
+        "Delete a keystore entry. Without confirm, shows a preview. Set confirm to true to execute.",
+      inputSchema: z.object({
+        hexalias: z.string().describe("The hex-encoded alias of the keystore entry to delete"),
+        keystoreName: keystoreNameEnum
+          .optional()
+          .describe("Name of the keystore"),
+        activate: z
+          .boolean()
+          .optional()
+          .describe("Whether to activate changes (for KeyRenewal keystore)"),
+        confirm: z
+          .boolean()
+          .optional()
+          .describe("Set to true to actually delete the entry"),
+      }),
+    },
+    async ({ hexalias, keystoreName, activate, confirm }) => {
+      try {
+        if (!confirm) {
+          const lines: string[] = [];
+          lines.push("Keystore entry to delete:");
+          lines.push("");
+          lines.push(`Hexalias: ${hexalias}`);
+          lines.push(`Keystore: ${keystoreName ?? "n/a"}`);
+          lines.push(`Activate: ${activate ?? "n/a"}`);
+          lines.push("");
+          lines.push("Set confirm to true to proceed.");
+          return {
+            content: [{ type: "text" as const, text: lines.join("\n") }],
+          };
+        }
+        let path = buildKeystoreEntryPath(hexalias);
+        const queryParts: string[] = [];
+        if (keystoreName !== undefined) {
+          queryParts.push(`keystoreName=${encodeURIComponent(keystoreName)}`);
+        }
+        if (activate !== undefined) {
+          queryParts.push(`activate=${activate}`);
+        }
+        if (queryParts.length > 0) {
+          path += `?${queryParts.join("&")}`;
+        }
+        await context.odataClient.delete(path);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Keystore entry '${hexalias}' deleted successfully.`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "export_ssh_key",
+    {
+      description:
+        "Export the SSH public key for a keystore entry in OpenSSH format.",
+      inputSchema: z.object({
+        hexalias: z.string().describe("The hex-encoded alias of the keystore entry"),
+      }),
+    },
+    async ({ hexalias }) => {
+      try {
+        const content = await context.odataClient.getValue(
+          buildSshKeyValuePath(hexalias)
+        );
+        return {
+          content: [{ type: "text" as const, text: content }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+
+  // ==========================================
+  // Group 2: Keystores
+  // ==========================================
+
+  server.registerTool(
+    "get_keystore",
+    {
+      description:
+        "Get details of a specific keystore by name.",
+      inputSchema: z.object({
+        keystoreName: z
+          .enum(["system", "backup_admin_system"])
+          .describe("Name of the keystore"),
+        expand: z
+          .string()
+          .optional()
+          .describe("Navigation properties to expand (e.g. 'Entries')"),
+        select: z
+          .string()
+          .optional()
+          .describe("Comma-separated list of fields to return"),
+      }),
+    },
+    async ({ keystoreName, expand, select }) => {
+      try {
+        const params: Record<string, string> = {};
+        if (expand) params.$expand = expand;
+        if (select) params.$select = select;
+        const keystore =
+          await context.odataClient.getEntity<Keystore>(
+            buildKeystorePath(keystoreName),
+            Object.keys(params).length > 0 ? params : undefined
+          );
+        const text = formatKeystoreSummary(keystore);
+        return {
+          content: [{ type: "text" as const, text }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "get_keystore_size",
+    {
+      description:
+        "Get the size (number of entries) of a keystore.",
+      inputSchema: z.object({
+        keystoreName: z
+          .enum(["system", "backup_admin_system"])
+          .describe("Name of the keystore"),
+      }),
+    },
+    async ({ keystoreName }) => {
+      try {
+        const content = await context.odataClient.getValue(
+          buildKeystoreSizePath(keystoreName)
+        );
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Keystore '${keystoreName}' size: ${content}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "export_keystore",
+    {
+      description:
+        "Export a keystore as a base64-encoded JKS/JCEKS file.",
+      inputSchema: z.object({
+        keystoreName: z
+          .enum(["system", "backup_admin_system"])
+          .describe("Name of the keystore to export"),
+      }),
+    },
+    async ({ keystoreName }) => {
+      try {
+        const content = await context.odataClient.getValue(
+          buildKeystoreResourcePath(keystoreName)
+        );
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Keystore '${keystoreName}' exported successfully. Content length: ${content.length} bytes (base64-encoded JKS/JCEKS data).`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "import_keystore",
+    {
+      description:
+        "Import a keystore from base64-encoded content. Without confirm, shows a preview. Set confirm to true to execute.",
+      inputSchema: z.object({
+        resource: z.string().describe("Base64-encoded keystore content"),
+        password: z.string().describe("Password for the keystore file"),
+        importOption: z
+          .enum(["replace", "merge", "overwrite"])
+          .optional()
+          .describe("Import option: replace, merge, or overwrite"),
+        confirm: z
+          .boolean()
+          .optional()
+          .describe("Set to true to actually import the keystore"),
+      }),
+    },
+    async ({ resource, password, importOption, confirm }) => {
+      try {
+        if (!confirm) {
+          const lines: string[] = [];
+          lines.push("Keystore to import:");
+          lines.push("");
+          lines.push(`Resource length: ${resource.length} characters`);
+          lines.push(`Import option: ${importOption ?? "n/a"}`);
+          lines.push("");
+          lines.push("Set confirm to true to proceed.");
+          return {
+            content: [{ type: "text" as const, text: lines.join("\n") }],
+          };
+        }
+        let path = buildKeystoreResourcesPath();
+        if (importOption !== undefined) {
+          path += `?importOption=${encodeURIComponent(importOption)}`;
+        }
+        await context.odataClient.post(path, {
+          Name: "system",
+          Resource: resource,
+          Password: password,
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: "Keystore imported successfully.",
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "restore_or_delete_keystore",
+    {
+      description:
+        "Restore the system keystore from backup or delete specific entries. Without confirm, shows a preview. Set confirm to true to execute.",
+      inputSchema: z.object({
+        operation: z
+          .enum(["restore", "delete"])
+          .describe("Operation mode: 'restore' restores from backup, 'delete' removes specific entries"),
+        aliases: z
+          .string()
+          .optional()
+          .describe("Semicolon-separated list of aliases to delete (required for delete operation)"),
+        confirm: z
+          .boolean()
+          .optional()
+          .describe("Set to true to actually execute the operation"),
+      }),
+    },
+    async ({ operation, aliases, confirm }) => {
+      try {
+        if (!confirm) {
+          const lines: string[] = [];
+          if (operation === "restore") {
+            lines.push("Keystore operation: RESTORE from backup");
+            lines.push("");
+            lines.push("This will restore the system keystore from backup_admin_system.");
+          } else {
+            lines.push("Keystore operation: DELETE entries");
+            lines.push("");
+            lines.push(`Aliases to delete: ${aliases ?? "n/a"}`);
+          }
+          lines.push("");
+          lines.push("Set confirm to true to proceed.");
+          return {
+            content: [{ type: "text" as const, text: lines.join("\n") }],
+          };
+        }
+        const path = buildKeystoreResourcePath("system");
+        if (operation === "restore") {
+          await context.odataClient.put(
+            `${path}?retrieveBackup=backup_admin_system`,
+            { Resource: null }
+          );
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "System keystore restored from backup successfully.",
+              },
+            ],
+          };
+        } else {
+          if (!aliases) {
+            return {
+              isError: true,
+              content: [
+                {
+                  type: "text" as const,
+                  text: "Aliases parameter is required for delete operation.",
+                },
+              ],
+            };
+          }
+          await context.odataClient.put(
+            `${path}?deleteEntries=true`,
+            { Aliases: aliases }
+          );
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Keystore entries '${aliases}' deleted successfully.`,
+              },
+            ],
+          };
+        }
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+
+  // ==========================================
+  // Group 3: Keystore History
+  // ==========================================
+
+  server.registerTool(
+    "list_history_keystore_entries",
+    {
+      description:
+        "List historical keystore entries on the active SAP Cloud Integration tenant.",
+      inputSchema: z.object({
+        select: z
+          .string()
+          .optional()
+          .describe("Comma-separated list of fields to return"),
+      }),
+    },
+    async ({ select }) => {
+      try {
+        const entries =
+          await context.odataClient.getCollection<HistoryKeystoreEntry>(
+            buildHistoryKeystoreEntriesPath(),
+            select ? { $select: select } : undefined
+          );
+        if (entries.length === 0) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "No history keystore entries found.",
+              },
+            ],
+          };
+        }
+        const text = entries.map(formatHistoryKeystoreEntry).join("\n\n");
+        return {
+          content: [{ type: "text" as const, text }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "get_history_keystore_entry",
+    {
+      description:
+        "Get details of a specific historical keystore entry by its hex alias.",
+      inputSchema: z.object({
+        hexalias: z.string().describe("The hex-encoded alias of the history keystore entry"),
+      }),
+    },
+    async ({ hexalias }) => {
+      try {
+        const entry =
+          await context.odataClient.getEntity<HistoryKeystoreEntry>(
+            buildHistoryKeystoreEntryPath(hexalias)
+          );
+        const text = formatHistoryKeystoreEntryDetail(entry);
+        return {
+          content: [{ type: "text" as const, text }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "restore_history_entry",
+    {
+      description:
+        "Restore a historical keystore entry to the active keystore. Without confirm, shows a preview. Set confirm to true to execute.",
+      inputSchema: z.object({
+        hexalias: z.string().describe("The hex-encoded alias of the history entry to restore"),
+        destinationAlias: z
+          .string()
+          .optional()
+          .describe("Optional destination alias for the restored entry"),
+        confirm: z
+          .boolean()
+          .optional()
+          .describe("Set to true to actually restore the entry"),
+      }),
+    },
+    async ({ hexalias, destinationAlias, confirm }) => {
+      try {
+        if (!confirm) {
+          const lines: string[] = [];
+          lines.push("History keystore entry to restore:");
+          lines.push("");
+          lines.push(`Hexalias: ${hexalias}`);
+          lines.push(`Destination alias: ${destinationAlias ?? "n/a (original alias)"}`);
+          lines.push("");
+          lines.push("Set confirm to true to proceed.");
+          return {
+            content: [{ type: "text" as const, text: lines.join("\n") }],
+          };
+        }
+        let path = `${buildHistoryKeystoreEntryPath(hexalias)}?copy=true`;
+        if (destinationAlias !== undefined) {
+          path += `&destinationAlias=${encodeURIComponent(destinationAlias)}`;
+        }
+        await context.odataClient.put(path, { Status: null });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `History keystore entry '${hexalias}' restored successfully.`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+}

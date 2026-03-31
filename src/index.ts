@@ -15,6 +15,7 @@ import { loggingModule } from "./modules/logging/tools.js";
 import { archivingModule } from "./modules/archiving/tools.js";
 import { contentModule } from "./modules/content/index.js";
 import { logfilesModule } from "./modules/logfiles/tools.js";
+import { securityModule } from "./modules/security/index.js";
 import type { TenantConfig, ModuleContext, Module } from "./core/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -32,7 +33,7 @@ const odataClient = new ODataClient(auth, tenantManager);
 
 const server = new McpServer({ name: "mcp-ci", version: "0.1.0" });
 const context: ModuleContext = { tenantManager, odataClient };
-const modules: Module[] = [tenantModule, monitoringModule, tracingModule, idMapperModule, idempotentModule, loggingModule, archivingModule, contentModule, logfilesModule];
+const modules: Module[] = [tenantModule, monitoringModule, tracingModule, idMapperModule, idempotentModule, loggingModule, archivingModule, contentModule, logfilesModule, securityModule];
 
 for (const mod of modules) {
   mod.register(server, context);
