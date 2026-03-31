@@ -11,6 +11,7 @@ import { monitoringModule } from "./modules/monitoring/tools.js";
 import { tracingModule } from "./modules/tracing/tools.js";
 import { idMapperModule } from "./modules/idmapper/tools.js";
 import { idempotentModule } from "./modules/idempotent/tools.js";
+import { loggingModule } from "./modules/logging/tools.js";
 import type { TenantConfig, ModuleContext, Module } from "./core/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -28,7 +29,7 @@ const odataClient = new ODataClient(auth, tenantManager);
 
 const server = new McpServer({ name: "mcp-ci", version: "0.1.0" });
 const context: ModuleContext = { tenantManager, odataClient };
-const modules: Module[] = [tenantModule, monitoringModule, tracingModule, idMapperModule, idempotentModule];
+const modules: Module[] = [tenantModule, monitoringModule, tracingModule, idMapperModule, idempotentModule, loggingModule];
 
 for (const mod of modules) {
   mod.register(server, context);
