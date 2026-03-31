@@ -102,6 +102,17 @@ describe("monitoring tools", () => {
       expect(mockODataClient.getValue).not.toHaveBeenCalled();
     });
 
+    it("includes extended fields when present", async () => {
+      mockODataClient.getEntity.mockResolvedValue({
+        ...makeMpl({ CustomStatus: "CUSTOM_FAIL", TransactionId: "tx-123" }),
+        CustomHeaderProperties: { results: [] },
+        AdapterAttributes: { results: [] },
+      });
+      const result = await handlers.get("get_message")!({ messageGuid: "guid-1" });
+      expect(result.content[0].text).toContain("CustomStatus: CUSTOM_FAIL");
+      expect(result.content[0].text).toContain("TransactionId: tx-123");
+    });
+
     it("includes custom headers and adapter attributes", async () => {
       mockODataClient.getEntity.mockResolvedValue({
         ...makeMpl(),

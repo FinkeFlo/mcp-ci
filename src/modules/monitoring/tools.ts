@@ -133,6 +133,22 @@ export const monitoringModule: Module = {
 
           const sections: string[] = [formatMessage(message)];
 
+          // Extended details
+          const extendedFields: [string, unknown][] = [
+            ["CustomStatus", message.CustomStatus],
+            ["TransactionId", message.TransactionId],
+            ["ApplicationMessageType", message.ApplicationMessageType],
+            ["PredecessorMessageGuid", message.PredecessorMessageGuid],
+            ["PackageId", message.IntegrationArtifact?.PackageId],
+            ["PackageName", message.IntegrationArtifact?.PackageName],
+          ];
+          const extendedLines = extendedFields
+            .filter(([, v]) => v != null)
+            .map(([k, v]) => `  ${k}: ${v}`);
+          if (extendedLines.length > 0) {
+            sections.push("Extended Details:\n" + extendedLines.join("\n"));
+          }
+
           // Custom header properties
           const headers = message.CustomHeaderProperties?.results ?? [];
           if (headers.length > 0) {
