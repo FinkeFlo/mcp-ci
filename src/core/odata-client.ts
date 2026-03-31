@@ -9,6 +9,7 @@ export interface ODataParams {
   $orderby?: string;
   $skip?: number;
   $inlinecount?: string;
+  filterCustomHeaderProperties?: string;
 }
 
 export class ODataClient {

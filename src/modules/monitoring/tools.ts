@@ -58,6 +58,12 @@ export const monitoringModule: Module = {
             .string()
             .optional()
             .describe("Filter by application message ID"),
+          customHeaders: z
+            .record(z.string(), z.string())
+            .optional()
+            .describe(
+              "Filter by custom header properties (key-value pairs), e.g. { documentNumber: '1234567890' }"
+            ),
           top: z
             .number()
             .optional()

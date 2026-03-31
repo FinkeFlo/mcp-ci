@@ -53,6 +53,40 @@ describe("buildListMessagesParams", () => {
       buildListMessagesParams({ from: "2026-03-26T10:00:00.123Z" }).$filter
     ).toBe("LogEnd ge datetime'2026-03-26T10:00:00Z'");
   });
+  it("builds filterCustomHeaderProperties for single header", () => {
+    const params = buildListMessagesParams({
+      customHeaders: { documentNumber: "1234567890" },
+    });
+    expect(params.filterCustomHeaderProperties).toBe(
+      "'documentNumber' eq '1234567890'"
+    );
+  });
+  it("combines multiple custom headers with and", () => {
+    const params = buildListMessagesParams({
+      customHeaders: { documentNumber: "1234567890", customerId: "0000012345" },
+    });
+    expect(params.filterCustomHeaderProperties).toContain(
+      "'documentNumber' eq '1234567890'"
+    );
+    expect(params.filterCustomHeaderProperties).toContain(
+      "'customerId' eq '0000012345'"
+    );
+    expect(params.filterCustomHeaderProperties).toContain(" and ");
+  });
+  it("escapes single quotes in custom header values", () => {
+    const params = buildListMessagesParams({
+      customHeaders: { key: "val'ue" },
+    });
+    expect(params.filterCustomHeaderProperties).toBe(
+      "'key' eq 'val''ue'"
+    );
+  });
+  it("does not set filterCustomHeaderProperties when empty", () => {
+    expect(buildListMessagesParams({}).filterCustomHeaderProperties).toBeUndefined();
+    expect(
+      buildListMessagesParams({ customHeaders: {} }).filterCustomHeaderProperties
+    ).toBeUndefined();
+  });
 });
 
 describe("buildGetErrorsParams", () => {
