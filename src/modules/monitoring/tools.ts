@@ -5,8 +5,10 @@ import type {
   MessageProcessingLog,
   CustomHeaderProperty,
   AdapterAttribute,
+  MessageProcessingLogAttachment,
+  MessageStoreEntry,
 } from "./types.js";
-import { buildListMessagesParams, buildGetErrorsParams } from "./queries.js";
+import { buildListMessagesParams, buildGetErrorsParams, buildCountParams } from "./queries.js";
 
 const API_PATH = "/api/v1/MessageProcessingLogs";
 
@@ -131,6 +133,22 @@ export const monitoringModule: Module = {
 
           const sections: string[] = [formatMessage(message)];
 
+          // Extended details
+          const extendedFields: [string, unknown][] = [
+            ["CustomStatus", message.CustomStatus],
+            ["TransactionId", message.TransactionId],
+            ["ApplicationMessageType", message.ApplicationMessageType],
+            ["PredecessorMessageGuid", message.PredecessorMessageGuid],
+            ["PackageId", message.IntegrationArtifact?.PackageId],
+            ["PackageName", message.IntegrationArtifact?.PackageName],
+          ];
+          const extendedLines = extendedFields
+            .filter(([, v]) => v != null)
+            .map(([k, v]) => `  ${k}: ${v}`);
+          if (extendedLines.length > 0) {
+            sections.push("Extended Details:\n" + extendedLines.join("\n"));
+          }
+
           // Custom header properties
           const headers = message.CustomHeaderProperties?.results ?? [];
           if (headers.length > 0) {
@@ -171,6 +189,83 @@ export const monitoringModule: Module = {
           return {
             content: [
               { type: "text" as const, text: sections.join("\n\n") },
+            ],
+          };
+        } catch (error) {
+          return {
+            isError: true,
+            content: [
+              { type: "text" as const, text: (error as Error).message },
+            ],
+          };
+        }
+      }
+    );
+
+    // --- count_messages ---
+    server.registerTool(
+      "count_messages",
+      {
+        description:
+          "Count message processing logs in SAP CPI matching optional filters",
+        inputSchema: z.object({
+          status: z
+            .string()
+            .optional()
+            .describe(
+              "Filter by status (COMPLETED, FAILED, PROCESSING, RETRY, etc.)"
+            ),
+          flowName: z
+            .string()
+            .optional()
+            .describe("Filter by integration flow name"),
+          from: z
+            .string()
+            .optional()
+            .describe("Start time (ISO 8601, e.g. 2026-03-26T00:00:00Z)"),
+          to: z
+            .string()
+            .optional()
+            .describe("End time (ISO 8601)"),
+          correlationId: z
+            .string()
+            .optional()
+            .describe("Filter by correlation ID"),
+          applicationMessageId: z
+            .string()
+            .optional()
+            .describe("Filter by application message ID"),
+          customHeaders: z
+            .record(z.string(), z.string())
+            .optional()
+            .describe(
+              "Filter by custom header properties (key-value pairs), e.g. { documentNumber: '1234567890' }"
+            ),
+        }),
+      },
+      async (filters) => {
+        try {
+          const params = buildCountParams(filters);
+          const entries = Object.entries(params);
+          const queryString =
+            entries.length > 0
+              ? "?" +
+                entries
+                  .map(
+                    ([k, v]) =>
+                      `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`
+                  )
+                  .join("&")
+              : "";
+          const count = await context.odataClient.getValue(
+            `${API_PATH}/$count${queryString}`
+          );
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Message count: ${count}`,
+              },
             ],
           };
         } catch (error) {
@@ -271,6 +366,157 @@ export const monitoringModule: Module = {
           return {
             content: [
               { type: "text" as const, text: lines.join("\n") },
+            ],
+          };
+        } catch (error) {
+          return {
+            isError: true,
+            content: [
+              { type: "text" as const, text: (error as Error).message },
+            ],
+          };
+        }
+      }
+    );
+    // --- get_attachments ---
+    server.registerTool(
+      "get_attachments",
+      {
+        description:
+          "List attachments for a message processing log, or fetch the raw content of a specific attachment",
+        inputSchema: z.object({
+          messageGuid: z.string().describe("The MessageGuid of the message"),
+          attachmentId: z
+            .string()
+            .optional()
+            .describe(
+              "If provided, fetches the raw $value content of this attachment"
+            ),
+        }),
+      },
+      async ({ messageGuid, attachmentId }) => {
+        const MAX_SIZE = 100 * 1024;
+        try {
+          if (attachmentId) {
+            const content = await context.odataClient.getValue(
+              `${API_PATH}('${messageGuid}')/Attachments('${attachmentId}')/$value`
+            );
+            const text =
+              content.length > MAX_SIZE
+                ? `${content.slice(0, MAX_SIZE)}\n\n[Truncated: original size ${content.length} chars]`
+                : content;
+            return {
+              content: [{ type: "text" as const, text }],
+            };
+          }
+
+          const attachments =
+            await context.odataClient.getCollection<MessageProcessingLogAttachment>(
+              `${API_PATH}('${messageGuid}')/Attachments`
+            );
+
+          if (attachments.length === 0) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: "No attachments found for this message.",
+                },
+              ],
+            };
+          }
+
+          const lines = attachments.map((a) =>
+            [
+              `Id: ${a.Id}`,
+              `Name: ${a.Name ?? "n/a"}`,
+              `ContentType: ${a.ContentType ?? "n/a"}`,
+              `Size: ${a.PayloadSize ?? "n/a"}`,
+              `Time: ${a.TimeStamp ?? "n/a"}`,
+            ].join("\n")
+          );
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Found ${attachments.length} attachment(s):\n\n${lines.join("\n---\n")}`,
+              },
+            ],
+          };
+        } catch (error) {
+          return {
+            isError: true,
+            content: [
+              { type: "text" as const, text: (error as Error).message },
+            ],
+          };
+        }
+      }
+    );
+    // --- get_message_store_entries ---
+    server.registerTool(
+      "get_message_store_entries",
+      {
+        description:
+          "List message store entries for a message processing log, or fetch the raw content of a specific entry",
+        inputSchema: z.object({
+          messageGuid: z.string().describe("The MessageGuid of the message"),
+          entryId: z
+            .string()
+            .optional()
+            .describe(
+              "If provided, fetches the raw $value content of this message store entry"
+            ),
+        }),
+      },
+      async ({ messageGuid, entryId }) => {
+        const MAX_SIZE = 100 * 1024;
+        try {
+          if (entryId) {
+            const content = await context.odataClient.getValue(
+              `${API_PATH}('${messageGuid}')/MessageStoreEntries('${entryId}')/$value`
+            );
+            const text =
+              content.length > MAX_SIZE
+                ? `${content.slice(0, MAX_SIZE)}\n\n[Truncated: original size ${content.length} chars]`
+                : content;
+            return {
+              content: [{ type: "text" as const, text }],
+            };
+          }
+
+          const entries =
+            await context.odataClient.getCollection<MessageStoreEntry>(
+              `${API_PATH}('${messageGuid}')/MessageStoreEntries`
+            );
+
+          if (entries.length === 0) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: "No message store entries found for this message.",
+                },
+              ],
+            };
+          }
+
+          const lines = entries.map((e) =>
+            [
+              `Id: ${e.Id}`,
+              `StoreId: ${e.MessageStoreId ?? "n/a"}`,
+              `Time: ${e.TimeStamp ?? "n/a"}`,
+              `HasAttachments: ${e.HasAttachments ?? "n/a"}`,
+            ].join("\n")
+          );
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Found ${entries.length} message store entr${entries.length === 1 ? "y" : "ies"}:\n\n${lines.join("\n---\n")}`,
+              },
             ],
           };
         } catch (error) {

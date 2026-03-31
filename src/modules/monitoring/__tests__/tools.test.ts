@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { monitoringModule } from "../tools.js";
 import type { ModuleContext } from "../../../core/types.js";
-import type { MessageProcessingLog } from "../types.js";
+import type { MessageProcessingLog, MessageProcessingLogAttachment, MessageStoreEntry } from "../types.js";
 
 function makeMpl(overrides: Partial<MessageProcessingLog> = {}): MessageProcessingLog {
   return {
@@ -102,6 +102,17 @@ describe("monitoring tools", () => {
       expect(mockODataClient.getValue).not.toHaveBeenCalled();
     });
 
+    it("includes extended fields when present", async () => {
+      mockODataClient.getEntity.mockResolvedValue({
+        ...makeMpl({ CustomStatus: "CUSTOM_FAIL", TransactionId: "tx-123" }),
+        CustomHeaderProperties: { results: [] },
+        AdapterAttributes: { results: [] },
+      });
+      const result = await handlers.get("get_message")!({ messageGuid: "guid-1" });
+      expect(result.content[0].text).toContain("CustomStatus: CUSTOM_FAIL");
+      expect(result.content[0].text).toContain("TransactionId: tx-123");
+    });
+
     it("includes custom headers and adapter attributes", async () => {
       mockODataClient.getEntity.mockResolvedValue({
         ...makeMpl(),
@@ -116,6 +127,34 @@ describe("monitoring tools", () => {
       const result = await handlers.get("get_message")!({ messageGuid: "guid-1" });
       expect(result.content[0].text).toContain("X-Custom: val1");
       expect(result.content[0].text).toContain("adapter.attr: val2");
+    });
+  });
+
+  describe("count_messages", () => {
+    it("returns count as number text", async () => {
+      mockODataClient.getValue.mockResolvedValue("42");
+      const result = await handlers.get("count_messages")!({});
+      expect(result.content[0].text).toBe("Message count: 42");
+    });
+
+    it("passes filters to the getValue URL with $count and filter params", async () => {
+      mockODataClient.getValue.mockResolvedValue("7");
+      await handlers.get("count_messages")!({
+        status: "FAILED",
+        flowName: "MyFlow",
+      });
+      const calledUrl: string = mockODataClient.getValue.mock.calls[0][0];
+      expect(calledUrl).toContain("/$count");
+      expect(calledUrl).toContain("%24filter=");
+      expect(calledUrl).toContain("FAILED");
+      expect(calledUrl).toContain("MyFlow");
+    });
+
+    it("returns error on failure", async () => {
+      mockODataClient.getValue.mockRejectedValue(new Error("OData error (503): unavailable"));
+      const result = await handlers.get("count_messages")!({});
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("OData error");
     });
   });
 
@@ -169,6 +208,139 @@ describe("monitoring tools", () => {
       const result = await handlers.get("get_errors")!({});
       expect(result.isError).toBeUndefined();
       expect(result.content[0].text).toContain("Flow: Flow_A");
+    });
+  });
+
+  describe("get_attachments", () => {
+    function makeAttachment(
+      overrides: Partial<MessageProcessingLogAttachment> = {}
+    ): MessageProcessingLogAttachment {
+      return {
+        Id: "att-1",
+        MessageGuid: "guid-1",
+        TimeStamp: "2026-03-26T10:00:00Z",
+        Name: "payload.xml",
+        ContentType: "application/xml",
+        PayloadSize: "1024",
+        ...overrides,
+      };
+    }
+
+    it("lists attachments for a message", async () => {
+      mockODataClient.getCollection.mockResolvedValue([makeAttachment()]);
+      const result = await handlers.get("get_attachments")!({
+        messageGuid: "guid-1",
+      });
+      expect(result.content[0].text).toContain("Found 1 attachment(s)");
+      expect(result.content[0].text).toContain("payload.xml");
+      expect(result.content[0].text).toContain("1024");
+    });
+
+    it("returns no attachments message when empty", async () => {
+      mockODataClient.getCollection.mockResolvedValue([]);
+      const result = await handlers.get("get_attachments")!({
+        messageGuid: "guid-1",
+      });
+      expect(result.content[0].text).toContain("No attachments found");
+    });
+
+    it("fetches $value content when attachmentId is provided", async () => {
+      mockODataClient.getValue.mockResolvedValue("<root>hello</root>");
+      const result = await handlers.get("get_attachments")!({
+        messageGuid: "guid-1",
+        attachmentId: "att-1",
+      });
+      const calledUrl: string = mockODataClient.getValue.mock.calls[0][0];
+      expect(calledUrl).toContain("Attachments('att-1')/$value");
+      expect(result.content[0].text).toBe("<root>hello</root>");
+    });
+
+    it("truncates $value content larger than 100KB", async () => {
+      const bigContent = "x".repeat(100 * 1024 + 50);
+      mockODataClient.getValue.mockResolvedValue(bigContent);
+      const result = await handlers.get("get_attachments")!({
+        messageGuid: "guid-1",
+        attachmentId: "att-1",
+      });
+      expect(result.content[0].text).toContain("[Truncated:");
+      expect(result.content[0].text.length).toBeLessThan(bigContent.length);
+    });
+
+    it("returns error on failure", async () => {
+      mockODataClient.getCollection.mockRejectedValue(
+        new Error("OData error (500): server error")
+      );
+      const result = await handlers.get("get_attachments")!({
+        messageGuid: "guid-1",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("OData error");
+    });
+  });
+
+  describe("get_message_store_entries", () => {
+    function makeEntry(
+      overrides: Partial<MessageStoreEntry> = {}
+    ): MessageStoreEntry {
+      return {
+        Id: "mse-1",
+        MessageGuid: "guid-1",
+        MessageStoreId: "store-abc",
+        TimeStamp: "2026-03-26T10:00:00Z",
+        HasAttachments: false,
+        ...overrides,
+      };
+    }
+
+    it("lists entries for a message", async () => {
+      mockODataClient.getCollection.mockResolvedValue([makeEntry()]);
+      const result = await handlers.get("get_message_store_entries")!({
+        messageGuid: "guid-1",
+      });
+      expect(result.content[0].text).toContain("Found 1 message store entry");
+      expect(result.content[0].text).toContain("Id: mse-1");
+      expect(result.content[0].text).toContain("StoreId: store-abc");
+    });
+
+    it("returns no message store entries when empty", async () => {
+      mockODataClient.getCollection.mockResolvedValue([]);
+      const result = await handlers.get("get_message_store_entries")!({
+        messageGuid: "guid-1",
+      });
+      expect(result.content[0].text).toContain("No message store entries found");
+    });
+
+    it("fetches $value when entryId is provided", async () => {
+      mockODataClient.getValue.mockResolvedValue("<entry>data</entry>");
+      const result = await handlers.get("get_message_store_entries")!({
+        messageGuid: "guid-1",
+        entryId: "mse-1",
+      });
+      const calledUrl: string = mockODataClient.getValue.mock.calls[0][0];
+      expect(calledUrl).toContain("MessageStoreEntries('mse-1')/$value");
+      expect(result.content[0].text).toBe("<entry>data</entry>");
+    });
+
+    it("truncates $value content larger than 100KB", async () => {
+      const bigContent = "y".repeat(100 * 1024 + 50);
+      mockODataClient.getValue.mockResolvedValue(bigContent);
+      const result = await handlers.get("get_message_store_entries")!({
+        messageGuid: "guid-1",
+        entryId: "mse-1",
+      });
+      expect(result.content[0].text).toContain("[Truncated:");
+      expect(result.content[0].text.length).toBeLessThan(bigContent.length);
+    });
+
+    it("returns error on failure", async () => {
+      mockODataClient.getCollection.mockRejectedValue(
+        new Error("OData error (500): server error")
+      );
+      const result = await handlers.get("get_message_store_entries")!({
+        messageGuid: "guid-1",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("OData error");
     });
   });
 });
