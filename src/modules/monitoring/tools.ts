@@ -6,7 +6,7 @@ import type {
   CustomHeaderProperty,
   AdapterAttribute,
 } from "./types.js";
-import { buildListMessagesParams, buildGetErrorsParams } from "./queries.js";
+import { buildListMessagesParams, buildGetErrorsParams, buildCountParams } from "./queries.js";
 
 const API_PATH = "/api/v1/MessageProcessingLogs";
 
@@ -171,6 +171,83 @@ export const monitoringModule: Module = {
           return {
             content: [
               { type: "text" as const, text: sections.join("\n\n") },
+            ],
+          };
+        } catch (error) {
+          return {
+            isError: true,
+            content: [
+              { type: "text" as const, text: (error as Error).message },
+            ],
+          };
+        }
+      }
+    );
+
+    // --- count_messages ---
+    server.registerTool(
+      "count_messages",
+      {
+        description:
+          "Count message processing logs in SAP CPI matching optional filters",
+        inputSchema: z.object({
+          status: z
+            .string()
+            .optional()
+            .describe(
+              "Filter by status (COMPLETED, FAILED, PROCESSING, RETRY, etc.)"
+            ),
+          flowName: z
+            .string()
+            .optional()
+            .describe("Filter by integration flow name"),
+          from: z
+            .string()
+            .optional()
+            .describe("Start time (ISO 8601, e.g. 2026-03-26T00:00:00Z)"),
+          to: z
+            .string()
+            .optional()
+            .describe("End time (ISO 8601)"),
+          correlationId: z
+            .string()
+            .optional()
+            .describe("Filter by correlation ID"),
+          applicationMessageId: z
+            .string()
+            .optional()
+            .describe("Filter by application message ID"),
+          customHeaders: z
+            .record(z.string(), z.string())
+            .optional()
+            .describe(
+              "Filter by custom header properties (key-value pairs), e.g. { documentNumber: '1234567890' }"
+            ),
+        }),
+      },
+      async (filters) => {
+        try {
+          const params = buildCountParams(filters);
+          const entries = Object.entries(params);
+          const queryString =
+            entries.length > 0
+              ? "?" +
+                entries
+                  .map(
+                    ([k, v]) =>
+                      `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`
+                  )
+                  .join("&")
+              : "";
+          const count = await context.odataClient.getValue(
+            `${API_PATH}/$count${queryString}`
+          );
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Message count: ${count}`,
+              },
             ],
           };
         } catch (error) {

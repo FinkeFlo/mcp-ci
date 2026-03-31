@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildListMessagesParams, buildGetErrorsParams } from "../queries.js";
+import { buildListMessagesParams, buildGetErrorsParams, buildCountParams } from "../queries.js";
 
 describe("buildListMessagesParams", () => {
   it("returns default params when no filters given", () => {
@@ -86,6 +86,41 @@ describe("buildListMessagesParams", () => {
     expect(
       buildListMessagesParams({ customHeaders: {} }).filterCustomHeaderProperties
     ).toBeUndefined();
+  });
+});
+
+describe("buildCountParams", () => {
+  it("returns filter-only params without $top, $select, $orderby", () => {
+    const params = buildCountParams({ status: "FAILED" });
+    expect(params.$filter).toBe("Status eq 'FAILED'");
+    expect(params.$top).toBeUndefined();
+    expect(params.$select).toBeUndefined();
+    expect(params.$orderby).toBeUndefined();
+  });
+
+  it("returns empty object when no filters given", () => {
+    const params = buildCountParams({});
+    expect(params.$filter).toBeUndefined();
+    expect(Object.keys(params)).toHaveLength(0);
+  });
+
+  it("applies escapeOData and stripMilliseconds", () => {
+    const params = buildCountParams({
+      flowName: "Flow's_Test",
+      from: "2026-03-26T10:00:00.123Z",
+    });
+    expect(params.$filter).toContain("IntegrationFlowName eq 'Flow''s_Test'");
+    expect(params.$filter).toContain("LogEnd ge datetime'2026-03-26T10:00:00Z'");
+  });
+
+  it("includes filterCustomHeaderProperties for customHeaders", () => {
+    const params = buildCountParams({
+      customHeaders: { documentNumber: "1234567890" },
+    });
+    expect(params.filterCustomHeaderProperties).toBe(
+      "'documentNumber' eq '1234567890'"
+    );
+    expect(params.$top).toBeUndefined();
   });
 });
 

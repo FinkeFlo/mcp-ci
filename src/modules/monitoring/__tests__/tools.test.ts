@@ -119,6 +119,34 @@ describe("monitoring tools", () => {
     });
   });
 
+  describe("count_messages", () => {
+    it("returns count as number text", async () => {
+      mockODataClient.getValue.mockResolvedValue("42");
+      const result = await handlers.get("count_messages")!({});
+      expect(result.content[0].text).toBe("Message count: 42");
+    });
+
+    it("passes filters to the getValue URL with $count and filter params", async () => {
+      mockODataClient.getValue.mockResolvedValue("7");
+      await handlers.get("count_messages")!({
+        status: "FAILED",
+        flowName: "MyFlow",
+      });
+      const calledUrl: string = mockODataClient.getValue.mock.calls[0][0];
+      expect(calledUrl).toContain("/$count");
+      expect(calledUrl).toContain("%24filter=");
+      expect(calledUrl).toContain("FAILED");
+      expect(calledUrl).toContain("MyFlow");
+    });
+
+    it("returns error on failure", async () => {
+      mockODataClient.getValue.mockRejectedValue(new Error("OData error (503): unavailable"));
+      const result = await handlers.get("count_messages")!({});
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("OData error");
+    });
+  });
+
   describe("get_errors", () => {
     it("returns no-errors text when empty", async () => {
       mockODataClient.getCollection.mockResolvedValue([]);
