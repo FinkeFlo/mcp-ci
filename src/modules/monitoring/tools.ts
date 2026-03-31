@@ -5,6 +5,7 @@ import type {
   MessageProcessingLog,
   CustomHeaderProperty,
   AdapterAttribute,
+  MessageProcessingLogAttachment,
 } from "./types.js";
 import { buildListMessagesParams, buildGetErrorsParams, buildCountParams } from "./queries.js";
 
@@ -348,6 +349,82 @@ export const monitoringModule: Module = {
           return {
             content: [
               { type: "text" as const, text: lines.join("\n") },
+            ],
+          };
+        } catch (error) {
+          return {
+            isError: true,
+            content: [
+              { type: "text" as const, text: (error as Error).message },
+            ],
+          };
+        }
+      }
+    );
+    // --- get_attachments ---
+    server.registerTool(
+      "get_attachments",
+      {
+        description:
+          "List attachments for a message processing log, or fetch the raw content of a specific attachment",
+        inputSchema: z.object({
+          messageGuid: z.string().describe("The MessageGuid of the message"),
+          attachmentId: z
+            .string()
+            .optional()
+            .describe(
+              "If provided, fetches the raw $value content of this attachment"
+            ),
+        }),
+      },
+      async ({ messageGuid, attachmentId }) => {
+        const MAX_SIZE = 100 * 1024;
+        try {
+          if (attachmentId) {
+            const content = await context.odataClient.getValue(
+              `${API_PATH}('${messageGuid}')/Attachments('${attachmentId}')/$value`
+            );
+            const text =
+              content.length > MAX_SIZE
+                ? `${content.slice(0, MAX_SIZE)}\n\n[Truncated: original size ${content.length} chars]`
+                : content;
+            return {
+              content: [{ type: "text" as const, text }],
+            };
+          }
+
+          const attachments =
+            await context.odataClient.getCollection<MessageProcessingLogAttachment>(
+              `${API_PATH}('${messageGuid}')/Attachments`
+            );
+
+          if (attachments.length === 0) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: "No attachments found for this message.",
+                },
+              ],
+            };
+          }
+
+          const lines = attachments.map((a) =>
+            [
+              `Id: ${a.Id}`,
+              `Name: ${a.Name ?? "n/a"}`,
+              `ContentType: ${a.ContentType ?? "n/a"}`,
+              `Size: ${a.PayloadSize ?? "n/a"}`,
+              `Time: ${a.TimeStamp ?? "n/a"}`,
+            ].join("\n")
+          );
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Found ${attachments.length} attachment(s):\n\n${lines.join("\n---\n")}`,
+              },
             ],
           };
         } catch (error) {
