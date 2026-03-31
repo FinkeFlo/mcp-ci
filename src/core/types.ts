@@ -1,3 +1,4 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { TenantManager } from "./tenant-manager.js";
 import type { ODataClient } from "./odata-client.js";
 
@@ -16,7 +17,7 @@ export interface TenantConfig {
 
 export interface Module {
   name: string;
-  register(server: any, context: ModuleContext): void;
+  register(server: McpServer, context: ModuleContext): void;
 }
 
 export interface ModuleContext {

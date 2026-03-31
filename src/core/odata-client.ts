@@ -29,7 +29,7 @@ export class ODataClient {
     const token = await this.auth.getToken(tenant);
     const url = `${tenant.apiUrl}${path}`;
     const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      headers: { Authorization: `Bearer ${token}`, Accept: "*/*" },
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) {

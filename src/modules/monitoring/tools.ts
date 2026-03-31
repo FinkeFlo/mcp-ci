@@ -228,13 +228,27 @@ export const monitoringModule: Module = {
             }
           }
 
+          // Fetch sample error per flow in parallel
+          const flowEntries = Array.from(groups.entries());
+          const errorTexts = await Promise.all(
+            flowEntries.map(async ([, { latest }]) => {
+              try {
+                return await context.odataClient.getValue(
+                  `${API_PATH}('${latest.MessageGuid}')/ErrorInformation/$value`
+                );
+              } catch {
+                return null;
+              }
+            })
+          );
+
           const lines: string[] = [
             `Total failed messages: ${messages.length}`,
             `Affected flows: ${groups.size}`,
             "",
           ];
 
-          for (const [flowName, { count, latest }] of groups) {
+          flowEntries.forEach(([flowName, { count, latest }], i) => {
             lines.push(`Flow: ${flowName}`);
             lines.push(`  Failures: ${count}`);
             lines.push(`  Latest: ${latest.LogEnd ?? "n/a"}`);
@@ -242,20 +256,11 @@ export const monitoringModule: Module = {
             if (latest.AlternateWebLink) {
               lines.push(`  Link: ${latest.AlternateWebLink}`);
             }
+            if (errorTexts[i]) {
+              lines.push(`  Sample error: ${errorTexts[i]}`);
+            }
             lines.push("");
-          }
-
-          // Fetch sample error text from the first failed message
-          const sampleGuid = messages[0].MessageGuid;
-          try {
-            const errorText = await context.odataClient.getValue(
-              `${API_PATH}('${sampleGuid}')/ErrorInformation/$value`
-            );
-            lines.push(`Sample error (from ${sampleGuid}):`);
-            lines.push(errorText);
-          } catch {
-            // Error text not available, skip
-          }
+          });
 
           return {
             content: [

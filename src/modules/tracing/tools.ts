@@ -194,34 +194,31 @@ export const tracingModule: Module = {
               }
             }
 
-            try {
-              const props =
-                await context.odataClient.getCollection<TraceMessageProperty>(
+            const [props, exchProps] = await Promise.all([
+              context.odataClient
+                .getCollection<TraceMessageProperty>(
                   buildTracePropertiesPath(trace.TraceId)
-                );
-              if (props.length > 0) {
-                parts.push("  Headers:");
-                for (const p of props) {
-                  parts.push(`    ${p.Name}: ${p.Value ?? ""}`);
-                }
+                )
+                .catch(() => [] as TraceMessageProperty[]),
+              context.odataClient
+                .getCollection<TraceMessageProperty>(
+                  buildTraceExchangePropertiesPath(trace.TraceId)
+                )
+                .catch(() => [] as TraceMessageProperty[]),
+            ]);
+
+            if (props.length > 0) {
+              parts.push("  Headers:");
+              for (const p of props) {
+                parts.push(`    ${p.Name}: ${p.Value ?? ""}`);
               }
-            } catch {
-              /* Properties not available */
             }
 
-            try {
-              const exchProps =
-                await context.odataClient.getCollection<TraceMessageProperty>(
-                  buildTraceExchangePropertiesPath(trace.TraceId)
-                );
-              if (exchProps.length > 0) {
-                parts.push("  Exchange Properties:");
-                for (const p of exchProps) {
-                  parts.push(`    ${p.Name}: ${p.Value ?? ""}`);
-                }
+            if (exchProps.length > 0) {
+              parts.push("  Exchange Properties:");
+              for (const p of exchProps) {
+                parts.push(`    ${p.Name}: ${p.Value ?? ""}`);
               }
-            } catch {
-              /* Exchange properties not available */
             }
 
             parts.push("");
