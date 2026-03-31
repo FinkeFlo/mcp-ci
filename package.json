@@ -11,7 +11,10 @@
   },
   "mcpServer": {
     "command": "npx",
-    "args": ["tsx", "src/index.ts"]
+    "args": [
+      "tsx",
+      "src/index.ts"
+    ]
   },
   "license": "MIT",
   "dependencies": {
@@ -20,6 +23,8 @@
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
+    "fast-xml-parser": "^5.5.9",
+    "jszip": "^3.10.1",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
     "vitest": "^4.1.1"

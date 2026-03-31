@@ -1,4 +1,4 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod/v4";
 import type { Module, ModuleContext } from "../../core/types.js";
 import type { ArchivingKeyPerformanceIndicators } from "./types.js";
@@ -31,7 +31,7 @@ function extractIsArchivedField(parsed: unknown): boolean | undefined {
 async function getArchivingConfig(context: ModuleContext): Promise<string> {
   const tenantName = context.tenantManager.getActiveTenant().name;
   const raw = await context.odataClient.getValue(
-    `/ArchivingConfigurations('${tenantName}')`
+    `/api/v1/ArchivingConfigurations('${tenantName}')`
   );
   const parsed = JSON.parse(raw) as unknown;
   const isArchived = extractIsArchivedField(parsed);
@@ -97,7 +97,7 @@ export const archivingModule: Module = {
         try {
           const params = filter ? { $filter: filter } : undefined;
           const kpis = await context.odataClient.getCollection<ArchivingKeyPerformanceIndicators>(
-            "/ArchivingKeyPerformanceIndicators",
+            "/api/v1/ArchivingKeyPerformanceIndicators",
             params
           );
           if (kpis.length === 0) {

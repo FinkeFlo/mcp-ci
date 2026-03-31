@@ -89,7 +89,7 @@ describe("archiving tools", () => {
       );
       await handlers.get("get_archiving_config")!({});
       expect(mockODataClient.getValue).toHaveBeenCalledWith(
-        "/ArchivingConfigurations('DEV')"
+        "/api/v1/ArchivingConfigurations('DEV')"
       );
     });
 
@@ -144,7 +144,7 @@ describe("archiving tools", () => {
       mockODataClient.getCollection.mockResolvedValue([]);
       await handlers.get("get_archiving_kpis")!({ filter: "RunStatus eq 'COMPLETED'" });
       expect(mockODataClient.getCollection).toHaveBeenCalledWith(
-        "/ArchivingKeyPerformanceIndicators",
+        "/api/v1/ArchivingKeyPerformanceIndicators",
         { $filter: "RunStatus eq 'COMPLETED'" }
       );
     });
@@ -153,7 +153,7 @@ describe("archiving tools", () => {
       mockODataClient.getCollection.mockResolvedValue([]);
       await handlers.get("get_archiving_kpis")!({});
       expect(mockODataClient.getCollection).toHaveBeenCalledWith(
-        "/ArchivingKeyPerformanceIndicators",
+        "/api/v1/ArchivingKeyPerformanceIndicators",
         undefined
       );
     });

@@ -1,18 +1,20 @@
+import { escapeOData } from "../../core/odata-utils.js";
+
 const BASE = "/api/v1";
 
 export function buildRunsPath(messageGuid: string): string {
-  return `${BASE}/MessageProcessingLogs('${messageGuid}')/Runs`;
+  return `${BASE}/MessageProcessingLogs('${escapeOData(messageGuid)}')/Runs`;
 }
 
 export function buildRunStepsPath(runId: string): string {
-  return `${BASE}/MessageProcessingLogRuns('${runId}')/RunSteps`;
+  return `${BASE}/MessageProcessingLogRuns('${escapeOData(runId)}')/RunSteps`;
 }
 
 export function buildTraceMessagesPath(
   runId: string,
   childCount: number
 ): string {
-  return `${BASE}/MessageProcessingLogRunSteps(RunId='${runId}',ChildCount=${childCount})/TraceMessages`;
+  return `${BASE}/MessageProcessingLogRunSteps(RunId='${escapeOData(runId)}',ChildCount=${childCount})/TraceMessages`;
 }
 
 export function buildTraceValuePath(traceId: string): string {

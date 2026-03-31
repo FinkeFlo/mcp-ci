@@ -1,4 +1,4 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod/v4";
 import type { ModuleContext, Module } from "../../core/types.js";
 
@@ -13,17 +13,26 @@ export const tenantModule: Module = {
         inputSchema: z.object({}),
       },
       async () => {
-        const active = context.tenantManager.getActiveTenantKey();
-        const all = context.tenantManager.listTenants();
-        const tenant = context.tenantManager.getActiveTenant();
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Active tenant: ${active} (${tenant.name})\nAPI URL: ${tenant.apiUrl}\nAvailable tenants: ${all.join(", ")}`,
-            },
-          ],
-        };
+        try {
+          const active = context.tenantManager.getActiveTenantKey();
+          const all = context.tenantManager.listTenants();
+          const tenant = context.tenantManager.getActiveTenant();
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Active tenant: ${active} (${tenant.name})\nAPI URL: ${tenant.apiUrl}\nAvailable tenants: ${all.join(", ")}`,
+              },
+            ],
+          };
+        } catch (error) {
+          return {
+            isError: true,
+            content: [
+              { type: "text" as const, text: (error as Error).message },
+            ],
+          };
+        }
       }
     );
 

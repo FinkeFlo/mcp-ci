@@ -1,6 +1,4 @@
-function escapeOData(value: string): string {
-  return value.replace(/'/g, "''");
-}
+import { escapeOData } from "../../core/odata-utils.js";
 
 export function buildFromIdPath(sourceId: string): string {
   return `/api/v1/IdMapFromIds('${escapeOData(sourceId)}')/ToIds`;

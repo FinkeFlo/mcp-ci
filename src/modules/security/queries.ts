@@ -64,9 +64,9 @@ export const buildCertUserMappingPath = (id: string) =>
 // --- Access Policies ---
 export const buildAccessPoliciesPath = () => "/api/v1/AccessPolicies";
 export const buildAccessPolicyPath = (id: string) =>
-  `/api/v1/AccessPolicies(${escapeOData(id)})`;
+  `/api/v1/AccessPolicies(${id})`;
 
 // --- Artifact References ---
 export const buildArtifactReferencesPath = () => "/api/v1/ArtifactReferences";
 export const buildArtifactReferencePath = (id: string) =>
-  `/api/v1/ArtifactReferences(${escapeOData(id)})`;
+  `/api/v1/ArtifactReferences(${id})`;
