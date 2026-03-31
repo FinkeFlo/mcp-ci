@@ -1,0 +1,12 @@
+export interface GenericIdempotentRepositoryEntry {
+  HexVendor: string;
+  HexSource: string;
+  HexEntry: string;
+  HexComponent: string;
+  Source: string | null;
+  Entry: string | null;
+  Component: string | null;
+  Vendor: string | null;
+  CreationTime: string | null;
+  ExpirationTime: string | null;
+}
