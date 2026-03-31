@@ -30,6 +30,7 @@ export interface ListMessagesFilters {
   to?: string;
   correlationId?: string;
   applicationMessageId?: string;
+  customHeaders?: Record<string, string>;
   top?: number;
 }
 
@@ -51,11 +52,19 @@ export function buildListMessagesParams(
 
   const top = filters.top ? Math.min(filters.top, 200) : 50;
 
+  let chpFilter: string | undefined;
+  if (filters.customHeaders && Object.keys(filters.customHeaders).length > 0) {
+    chpFilter = Object.entries(filters.customHeaders)
+      .map(([name, value]) => `'${escapeOData(name)}' eq '${escapeOData(value)}'`)
+      .join(" and ");
+  }
+
   return {
     $select: MPL_SELECT,
     $orderby: "LogEnd desc",
     $top: top,
     ...(conditions.length > 0 ? { $filter: conditions.join(" and ") } : {}),
+    ...(chpFilter ? { filterCustomHeaderProperties: chpFilter } : {}),
   };
 }
 
