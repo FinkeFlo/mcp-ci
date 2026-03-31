@@ -97,4 +97,97 @@ describe("ODataClient", () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new Error("fetch failed"));
     await expect(client.getCollection("/api/v1/MessageProcessingLogs")).rejects.toThrow("fetch failed");
   });
+
+  describe("CSRF token handling", () => {
+    it("fetches CSRF token from root endpoint", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch")
+        // 1. CSRF fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: new Headers({ "X-CSRF-Token": "csrf-token-value" }),
+        } as Response)
+        // 2. DELETE
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 204,
+        } as Response);
+
+      await client.delete("/api/v1/MessageProcessingLogs('abc')");
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+      // First call: CSRF fetch to root
+      expect(fetchSpy.mock.calls[0][0]).toBe("https://dev.example.com/");
+      expect((fetchSpy.mock.calls[0][1] as RequestInit).headers).toMatchObject({
+        "X-CSRF-Token": "Fetch",
+      });
+
+      // Second call: DELETE with CSRF token
+      expect(fetchSpy.mock.calls[1][0]).toBe("https://dev.example.com/api/v1/MessageProcessingLogs('abc')");
+      expect((fetchSpy.mock.calls[1][1] as RequestInit).method).toBe("DELETE");
+      expect((fetchSpy.mock.calls[1][1] as RequestInit).headers).toMatchObject({
+        "X-CSRF-Token": "csrf-token-value",
+      });
+    });
+
+    it("caches CSRF token across multiple requests", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch")
+        // 1. CSRF fetch (only once)
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: new Headers({ "X-CSRF-Token": "csrf-token-value" }),
+        } as Response)
+        // 2. First DELETE
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 204,
+        } as Response)
+        // 3. Second DELETE
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 204,
+        } as Response);
+
+      await client.delete("/api/v1/MessageProcessingLogs('abc')");
+      await client.delete("/api/v1/MessageProcessingLogs('def')");
+
+      // 1 CSRF fetch + 2 DELETEs = 3 total
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    });
+
+    it("refreshes CSRF token on 403", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch")
+        // 1. Initial CSRF fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: new Headers({ "X-CSRF-Token": "csrf-token-value" }),
+        } as Response)
+        // 2. First DELETE → 403
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 403,
+          text: async () => "Forbidden",
+        } as Response)
+        // 3. CSRF re-fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: new Headers({ "X-CSRF-Token": "new-csrf-token" }),
+        } as Response)
+        // 4. Retry DELETE → success
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 204,
+        } as Response);
+
+      await client.delete("/api/v1/MessageProcessingLogs('abc')");
+
+      // 1 CSRF fetch + 1 failed DELETE + 1 CSRF re-fetch + 1 retry DELETE = 4
+      expect(fetchSpy).toHaveBeenCalledTimes(4);
+
+      // Final DELETE should use the new CSRF token
+      expect((fetchSpy.mock.calls[3][1] as RequestInit).headers).toMatchObject({
+        "X-CSRF-Token": "new-csrf-token",
+      });
+    });
+  });
 });

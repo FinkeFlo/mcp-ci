@@ -13,7 +13,83 @@ export interface ODataParams {
 }
 
 export class ODataClient {
+  private static CSRF_TTL = 30 * 60_000;
+  private csrfTokens = new Map<string, { token: string; fetchedAt: number }>();
+
   constructor(private auth: Auth, private tenantManager: TenantManager) {}
+
+  private async getCsrfToken(): Promise<string> {
+    const tenant = this.tenantManager.getActiveTenant();
+    const cached = this.csrfTokens.get(tenant.clientId);
+    if (cached && Date.now() - cached.fetchedAt < ODataClient.CSRF_TTL) {
+      return cached.token;
+    }
+    return this.fetchCsrfToken();
+  }
+
+  private async fetchCsrfToken(): Promise<string> {
+    const tenant = this.tenantManager.getActiveTenant();
+    const token = await this.auth.getToken(tenant);
+    const url = `${tenant.apiUrl}/`;
+    const response = await fetch(url, {
+      headers: {
+        "X-CSRF-Token": "Fetch",
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(this.formatError(response.status, errorText));
+    }
+    const csrfToken = response.headers.get("X-CSRF-Token");
+    if (!csrfToken) {
+      throw new Error("CSRF token missing from response headers");
+    }
+    this.csrfTokens.set(tenant.clientId, { token: csrfToken, fetchedAt: Date.now() });
+    return csrfToken;
+  }
+
+  async delete(path: string): Promise<void> {
+    const tenant = this.tenantManager.getActiveTenant();
+    const token = await this.auth.getToken(tenant);
+    const csrfToken = await this.getCsrfToken();
+    const url = `${tenant.apiUrl}${path}`;
+
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "X-CSRF-Token": csrfToken,
+      },
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (response.status === 403) {
+      // Invalidate cached token and retry once
+      this.csrfTokens.delete(tenant.clientId);
+      const newCsrfToken = await this.fetchCsrfToken();
+      const retryResponse = await fetch(url, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "X-CSRF-Token": newCsrfToken,
+        },
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!retryResponse.ok) {
+        const errorText = await retryResponse.text();
+        throw new Error(this.formatError(retryResponse.status, errorText));
+      }
+      return;
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(this.formatError(response.status, errorText));
+    }
+  }
 
   async getCollection<T = Record<string, unknown>>(path: string, params?: ODataParams): Promise<T[]> {
     const json = await this.request(path, params);
