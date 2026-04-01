@@ -3,5 +3,5 @@ export function escapeOData(value: string): string {
 }
 
 export function stripMilliseconds(iso: string): string {
-  return iso.replace(/\.\d{3}Z$/, "Z");
+  return iso.replace(/\.\d{3}Z$/, "").replace(/Z$/, "");
 }

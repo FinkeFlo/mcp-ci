@@ -30,7 +30,7 @@ export class ODataClient {
   private async fetchCsrfToken(): Promise<string> {
     const tenant = this.tenantManager.getActiveTenant();
     const token = await this.auth.getToken(tenant);
-    const url = `${tenant.apiUrl}/`;
+    const url = `${tenant.apiUrl}/api/v1/`;
     const response = await fetch(url, {
       headers: {
         "X-CSRF-Token": "Fetch",
@@ -95,14 +95,14 @@ export class ODataClient {
         const errorText = await retryResponse.text();
         throw new Error(this.formatError(retryResponse.status, errorText));
       }
-      return retryResponse.json();
+      return this.safeJson(retryResponse);
     }
 
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(this.formatError(response.status, errorText));
     }
-    return response.json();
+    return this.safeJson(response);
   }
 
   async delete(path: string): Promise<void> {
@@ -242,6 +242,12 @@ export class ODataClient {
       throw new Error(this.formatError(response.status, errorText));
     }
     return response.json();
+  }
+
+  private async safeJson(response: Response): Promise<any> {
+    const text = await response.text();
+    if (!text) return undefined;
+    return JSON.parse(text);
   }
 
   private formatError(status: number, body: string): string {

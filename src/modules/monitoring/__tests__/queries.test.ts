@@ -22,7 +22,7 @@ describe("buildListMessagesParams", () => {
   it("filters by time range", () => {
     expect(
       buildListMessagesParams({ from: "2026-03-26T00:00:00Z" }).$filter
-    ).toBe("LogEnd ge datetime'2026-03-26T00:00:00Z'");
+    ).toBe("LogEnd ge datetime'2026-03-26T00:00:00'");
   });
   it("combines multiple filters with and", () => {
     expect(
@@ -51,7 +51,7 @@ describe("buildListMessagesParams", () => {
   it("strips milliseconds from datetime filters", () => {
     expect(
       buildListMessagesParams({ from: "2026-03-26T10:00:00.123Z" }).$filter
-    ).toBe("LogEnd ge datetime'2026-03-26T10:00:00Z'");
+    ).toBe("LogEnd ge datetime'2026-03-26T10:00:00'");
   });
   it("builds filterCustomHeaderProperties for single header", () => {
     const params = buildListMessagesParams({
@@ -110,7 +110,7 @@ describe("buildCountParams", () => {
       from: "2026-03-26T10:00:00.123Z",
     });
     expect(params.$filter).toContain("IntegrationFlowName eq 'Flow''s_Test'");
-    expect(params.$filter).toContain("LogEnd ge datetime'2026-03-26T10:00:00Z'");
+    expect(params.$filter).toContain("LogEnd ge datetime'2026-03-26T10:00:00'");
   });
 
   it("includes filterCustomHeaderProperties for customHeaders", () => {
@@ -135,13 +135,13 @@ describe("buildGetErrorsParams", () => {
   it("uses custom time range", () => {
     const params = buildGetErrorsParams({ from: "2026-03-26T00:00:00Z" });
     expect(params.$filter).toContain(
-      "LogEnd ge datetime'2026-03-26T00:00:00Z'"
+      "LogEnd ge datetime'2026-03-26T00:00:00'"
     );
   });
   it("strips milliseconds from user-provided from value", () => {
     const params = buildGetErrorsParams({ from: "2026-03-26T10:00:00.456Z" });
     expect(params.$filter).toContain(
-      "LogEnd ge datetime'2026-03-26T10:00:00Z'"
+      "LogEnd ge datetime'2026-03-26T10:00:00'"
     );
   });
 });

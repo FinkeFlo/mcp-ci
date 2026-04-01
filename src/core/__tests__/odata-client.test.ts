@@ -117,7 +117,7 @@ describe("ODataClient", () => {
       expect(fetchSpy).toHaveBeenCalledTimes(2);
 
       // First call: CSRF fetch to root
-      expect(fetchSpy.mock.calls[0][0]).toBe("https://dev.example.com/");
+      expect(fetchSpy.mock.calls[0][0]).toBe("https://dev.example.com/api/v1/");
       expect((fetchSpy.mock.calls[0][1] as RequestInit).headers).toMatchObject({
         "X-CSRF-Token": "Fetch",
       });
@@ -212,7 +212,7 @@ describe("ODataClient", () => {
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
-          json: async () => ({ d: { results: [] } }),
+          text: async () => JSON.stringify({ d: { results: [] } }),
         } as Response);
 
       await client.post("/api/v1/activateExternalLogging");
@@ -237,7 +237,7 @@ describe("ODataClient", () => {
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
-          json: async () => ({ success: true }),
+          text: async () => JSON.stringify({ success: true }),
         } as Response);
 
       const result = await client.post("/api/v1/activateExternalLogging", { defaultLogLevel: "INFO" });
@@ -254,6 +254,53 @@ describe("ODataClient", () => {
       expect(result).toEqual({ success: true });
     });
 
+    it("handles empty response body from POST (e.g. 201 Created)", async () => {
+      vi.spyOn(globalThis, "fetch")
+        // 1. CSRF fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: new Headers({ "X-CSRF-Token": "csrf-token-value" }),
+        } as Response)
+        // 2. POST response — 201 with empty body
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 201,
+          text: async () => "",
+        } as Response);
+
+      const result = await client.post("/api/v1/UserCredentials", { Name: "test", User: "user" });
+      expect(result).toBeUndefined();
+    });
+
+    it("handles empty response body from POST after CSRF retry", async () => {
+      vi.spyOn(globalThis, "fetch")
+        // 1. Initial CSRF fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: new Headers({ "X-CSRF-Token": "old-token" }),
+        } as Response)
+        // 2. POST → 403
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 403,
+          text: async () => "Forbidden",
+        } as Response)
+        // 3. CSRF re-fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: new Headers({ "X-CSRF-Token": "new-token" }),
+        } as Response)
+        // 4. Retry POST → 201 with empty body
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 201,
+          text: async () => "",
+        } as Response);
+
+      const result = await client.post("/api/v1/UserCredentials", { Name: "test" });
+      expect(result).toBeUndefined();
+    });
+
     it("sends POST without body", async () => {
       const fetchSpy = vi.spyOn(globalThis, "fetch")
         // 1. CSRF fetch
@@ -265,7 +312,7 @@ describe("ODataClient", () => {
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
-          json: async () => ({}),
+          text: async () => JSON.stringify({}),
         } as Response);
 
       await client.post("/api/v1/deactivateExternalLogging");
