@@ -2,7 +2,9 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { Annotation, ToolEntry } from "./types.js";
 
-const ANNOTATION_RE = /^\s*\/\/\s*@api\s+(\S+)(?:\s+(\S+))?\s*$/;
+// method is a single token; the path may contain spaces (e.g. template
+// params like '{Source ID}'), so the path group captures the rest of the line.
+const ANNOTATION_RE = /^\s*\/\/\s*@api\s+(\S+)(?:\s+(.+?))?\s*$/;
 const REGISTER_RE = /server\.registerTool\(/;
 const NAME_RE = /["']([^"']+)["']/;
 

@@ -42,13 +42,11 @@ export interface CoverageReport {
 // A slice of a spec that belongs to a module. Several specs (notably
 // MessageProcessingLogs.yaml) bundle multiple logical areas distinguished by
 // their OpenAPI `tags`, so a module owns a tag-scoped slice rather than the
-// whole file. An operation belongs to a scope when its spec matches and:
-//   - `tags` omitted  → any tag, OR the operation's tag is in `tags`; and
-//   - `excludeTags` omitted → no exclusion, OR the operation's tag is NOT in it.
+// whole file. An operation belongs to a scope when its spec matches and either
+// `tags` is omitted (the whole file) or the operation's tag is in `tags`.
 export interface SpecScope {
   spec: string;
   tags?: string[]; // include only operations with one of these tags
-  excludeTags?: string[]; // drop operations with one of these tags
 }
 
 // Module → the spec slice(s) it draws operations from. The slices are disjoint
@@ -57,8 +55,9 @@ export interface SpecScope {
 export const MODULE_SPECS: Record<string, SpecScope[]> = {
   content: [{ spec: "IntegrationContent.yaml" }],
   security: [{ spec: "SecurityContent.yaml" }],
-  // "Data Archiving" in B2BScenarios.yaml is owned by the archiving module.
-  b2b: [{ spec: "B2BScenarios.yaml", excludeTags: ["Data Archiving"] }],
+  // b2b owns all of B2BScenarios.yaml, including its "Data Archiving" tag — the
+  // B2B archiving tools live in src/modules/b2b/tools/archiving.ts.
+  b2b: [{ spec: "B2BScenarios.yaml" }],
   messagestore: [{ spec: "MessageStore.yaml" }],
   logfiles: [{ spec: "LogFiles.yaml" }],
   monitoring: [
@@ -75,10 +74,9 @@ export const MODULE_SPECS: Record<string, SpecScope[]> = {
   ],
   idempotent: [{ spec: "MessageProcessingLogs.yaml", tags: ["Idempotent Repository"] }],
   logging: [{ spec: "MessageProcessingLogs.yaml", tags: ["External Logging"] }],
-  archiving: [
-    { spec: "MessageProcessingLogs.yaml", tags: ["Data Archiving"] },
-    { spec: "B2BScenarios.yaml", tags: ["Data Archiving"] },
-  ],
+  // Only the message-level archiving in MessageProcessingLogs.yaml; the B2B
+  // archiving (B2BScenarios.yaml) belongs to the b2b module above.
+  archiving: [{ spec: "MessageProcessingLogs.yaml", tags: ["Data Archiving"] }],
   idmapper: [{ spec: "MessageProcessingLogs.yaml", tags: ["ID Mapper"] }],
   // Runs/RunSteps/TraceMessages are navigation properties, not enumerated as
   // paths in MessageProcessingLogs.yaml — no operations to map.

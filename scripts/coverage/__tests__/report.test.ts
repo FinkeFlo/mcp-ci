@@ -85,17 +85,19 @@ describe("buildReport", () => {
     expect(idempotentUni.gaps.map((g) => g.path)).toEqual(["/IdempotentRepositoryEntries"]);
   });
 
-  // b2b owns all of B2BScenarios.yaml except the "Data Archiving" tag, which
-  // belongs to the archiving module.
-  it("honors excludeTags so archiving ops do not leak into b2b", () => {
+  // A scope with no `tags` claims the whole spec: b2b owns all of
+  // B2BScenarios.yaml, including its "Data Archiving" tag (the B2B archiving
+  // tools live in the b2b module).
+  it("an untagged scope claims every tag of its spec", () => {
     const ops: Operation[] = [
       { spec: "B2BScenarios.yaml", method: "GET", path: "/BusinessDocuments", tag: "Business Documents", summary: "" },
       { spec: "B2BScenarios.yaml", method: "POST", path: "/activateB2BArchivingConfiguration", tag: "Data Archiving", summary: "" },
     ];
-    const report = buildReport(ops, [], "docs/api", "src/modules");
-    const b2b = report.modules.find((m) => m.module === "b2b")!;
-    const archiving = report.modules.find((m) => m.module === "archiving")!;
-    expect(b2b.gaps.map((g) => g.path)).toEqual(["/BusinessDocuments"]);
-    expect(archiving.gaps.map((g) => g.path)).toEqual(["/activateB2BArchivingConfiguration"]);
+    const b2b = buildReport(ops, [], "docs/api", "src/modules").modules.find((m) => m.module === "b2b")!;
+    expect(b2b.totalOps).toBe(2);
+    expect(b2b.gaps.map((g) => g.path)).toEqual([
+      "/BusinessDocuments",
+      "/activateB2BArchivingConfiguration",
+    ]);
   });
 });
