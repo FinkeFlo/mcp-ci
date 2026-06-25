@@ -104,6 +104,8 @@ export const buildGuidelineResultPath = (artifactType: "iflow" | "script_collect
 };
 export const buildGuidelineResultValuePath = (id: string, version: string, executionId: string) =>
   `/api/v1/IntegrationDesigntimeArtifacts(Id='${escapeOData(id)}',Version='${escapeOData(version)}')/DesignGuidelineExecutionResults('${escapeOData(executionId)}')/$value`;
+export const buildScriptCollectionGuidelineResultValuePath = (id: string, version: string, executionId: string) =>
+  `/api/v1/ScriptCollectionDesigntimeArtifacts(Id='${escapeOData(id)}',Version='${escapeOData(version)}')/DesignGuidelineExecutionResults('${escapeOData(executionId)}')/$value`;
 export const buildExecuteGuidelinesPath = (artifactType: "iflow" | "script_collection") =>
   artifactType === "iflow"
     ? "/api/v1/ExecuteIntegrationDesigntimeArtifactsGuidelines"
@@ -115,17 +117,51 @@ export const buildCustomTagsConfigValuePath = () =>
 export const buildCustomTagsConfigsPath = () =>
   "/api/v1/CustomTagConfigurations";
 
+// --- Configurations Count ---
+export const buildConfigurationsCountPath = (id: string, version = "active") =>
+  `/api/v1/IntegrationDesigntimeArtifacts(Id='${escapeOData(id)}',Version='${escapeOData(version)}')/Configurations/$count`;
+
+// --- Resources Count ---
+export const buildResourcesCountPath = (id: string, version = "active") =>
+  `/api/v1/IntegrationDesigntimeArtifacts(Id='${escapeOData(id)}',Version='${escapeOData(version)}')/Resources/$count`;
+
 // --- Type Artifacts (shared pattern) ---
 export const buildTypeArtifactsPath = (artifactType: string) =>
   `/api/v1/${artifactType}`;
 export const buildTypeArtifactPath = (artifactType: string, id: string, version = "active") =>
   `/api/v1/${artifactType}(Id='${escapeOData(id)}',Version='${escapeOData(version)}')`;
+export const buildTypeArtifactValuePath = (artifactType: string, id: string, version = "active") =>
+  `/api/v1/${artifactType}(Id='${escapeOData(id)}',Version='${escapeOData(version)}')/$value`;
 
 // --- Integration Adapters ---
 export const buildAdaptersPath = () => "/api/v1/IntegrationAdapterDesigntimeArtifacts";
 export const buildAdapterPath = (id: string) =>
   `/api/v1/IntegrationAdapterDesigntimeArtifacts(Id='${escapeOData(id)}')`;
 export const buildDeployAdapterPath = () => "/api/v1/DeployIntegrationAdapterDesigntimeArtifact";
+
+// --- Package Artifact Navigation ---
+export const buildPackageDesigntimeArtifactPath = (packageId: string, artifactId: string, version = "active") =>
+  `/api/v1/IntegrationPackages('${escapeOData(packageId)}')/IntegrationDesigntimeArtifacts(Id='${escapeOData(artifactId)}',Version='${escapeOData(version)}')`;
+export const buildPackageMessageMappingsPath = (packageId: string) =>
+  `/api/v1/IntegrationPackages('${escapeOData(packageId)}')/MessageMappingDesigntimeArtifacts`;
+export const buildPackageMessageMappingPath = (packageId: string, artifactId: string, version = "active") =>
+  `/api/v1/IntegrationPackages('${escapeOData(packageId)}')/MessageMappingDesigntimeArtifacts(Id='${escapeOData(artifactId)}',Version='${escapeOData(version)}')`;
+export const buildPackageValueMappingsPath = (packageId: string) =>
+  `/api/v1/IntegrationPackages('${escapeOData(packageId)}')/ValueMappingDesigntimeArtifacts`;
+export const buildPackageValueMappingPath = (packageId: string, artifactId: string, version = "active") =>
+  `/api/v1/IntegrationPackages('${escapeOData(packageId)}')/ValueMappingDesigntimeArtifacts(Id='${escapeOData(artifactId)}',Version='${escapeOData(version)}')`;
+export const buildPackageScriptCollectionPath = (packageId: string, artifactId: string, version = "active") =>
+  `/api/v1/IntegrationPackages('${escapeOData(packageId)}')/ScriptCollectionDesigntimeArtifacts(Id='${escapeOData(artifactId)}',Version='${escapeOData(version)}')`;
+export const buildPackageCustomTagsPath = (packageId: string) =>
+  `/api/v1/IntegrationPackages('${escapeOData(packageId)}')/CustomTags`;
+export const buildPackageMessageTypesPath = (packageId: string) =>
+  `/api/v1/IntegrationPackages('${escapeOData(packageId)}')/MessageTypeDesigntimeArtifacts`;
+export const buildPackageFaultMessageTypesPath = (packageId: string) =>
+  `/api/v1/IntegrationPackages('${escapeOData(packageId)}')/FaultMessageTypeDesigntimeArtifacts`;
+export const buildPackageDataTypesPath = (packageId: string) =>
+  `/api/v1/IntegrationPackages('${escapeOData(packageId)}')/DataTypeDesigntimeArtifacts`;
+export const buildPackageServiceInterfacesPath = (packageId: string) =>
+  `/api/v1/IntegrationPackages('${escapeOData(packageId)}')/ServiceInterfaceDesigntimeArtifacts`;
 
 // --- MDI Delta Token ---
 export const buildMdiDeltaTokenPath = (operation: string, entity: string, version: string) =>

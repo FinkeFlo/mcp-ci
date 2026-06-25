@@ -7,6 +7,7 @@ import {
   buildGuidelineResultsPath,
   buildGuidelineResultPath,
   buildGuidelineResultValuePath,
+  buildScriptCollectionGuidelineResultValuePath,
   buildExecuteGuidelinesPath,
 } from "../queries.js";
 
@@ -185,7 +186,7 @@ export function registerDesignGuidelineTools(
     }
   );
 
-  // 4. download_guideline_result
+  // 4. download_guideline_result (iflow)
   // @api GET /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')/DesignGuidelineExecutionResults('{ExecutionId}')/$value
   server.registerTool(
     "download_guideline_result",
@@ -202,6 +203,50 @@ export function registerDesignGuidelineTools(
       try {
         const content = await context.odataClient.getValue(
           buildGuidelineResultValuePath(artifactId, version, executionId)
+        );
+        const MAX_SIZE = 100 * 1024; // 100KB
+        if (content.length > MAX_SIZE) {
+          const truncated = content.slice(0, MAX_SIZE);
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `${truncated}\n\n--- TRUNCATED: Content exceeds 100KB (${content.length} bytes total). Only the first 100KB is shown. ---`,
+              },
+            ],
+          };
+        }
+        return {
+          content: [{ type: "text" as const, text: content }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+
+  // 5. download_sc_guideline_result (script collection)
+  // @api GET /ScriptCollectionDesigntimeArtifacts(Id='{Id}',Version='{Version}')/DesignGuidelineExecutionResults('{ExecutionId}')/$value
+  server.registerTool(
+    "download_sc_guideline_result",
+    {
+      description:
+        "Download the detailed result of a design guideline execution for a script collection.",
+      inputSchema: z.object({
+        artifactId: z.string().describe("The script collection artifact ID"),
+        version: z.string().describe("The artifact version"),
+        executionId: z.string().describe("The execution result ID"),
+      }),
+    },
+    async ({ artifactId, version, executionId }) => {
+      try {
+        const content = await context.odataClient.getValue(
+          buildScriptCollectionGuidelineResultValuePath(artifactId, version, executionId)
         );
         const MAX_SIZE = 100 * 1024; // 100KB
         if (content.length > MAX_SIZE) {

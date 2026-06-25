@@ -17,9 +17,11 @@ import {
   buildSaveDesigntimeArtifactVersionPath,
   buildConfigurationsPath,
   buildConfigurationLinkPath,
+  buildConfigurationsCountPath,
   buildResourcesPath,
   buildResourcePath,
   buildResourceValuePath,
+  buildResourcesCountPath,
 } from "../queries.js";
 
 function formatArtifact(a: IntegrationDesigntimeArtifact): string {
@@ -759,6 +761,74 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
         }
         return {
           content: [{ type: "text" as const, text: content }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+
+  // 15. count_configurations
+  // @api GET /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')/Configurations/$count
+  server.registerTool(
+    "count_configurations",
+    {
+      description:
+        "Count configurations (externalized parameters) of an integration designtime artifact.",
+      inputSchema: z.object({
+        artifactId: z.string().describe("The artifact ID"),
+        version: z
+          .string()
+          .optional()
+          .describe("The artifact version (default: 'active')"),
+      }),
+    },
+    async ({ artifactId, version }) => {
+      try {
+        const count = await context.odataClient.getValue(
+          buildConfigurationsCountPath(artifactId, version ?? "active")
+        );
+        return {
+          content: [{ type: "text" as const, text: count }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+
+  // 16. count_resources
+  // @api GET /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')/Resources/$count
+  server.registerTool(
+    "count_resources",
+    {
+      description:
+        "Count resources of an integration designtime artifact.",
+      inputSchema: z.object({
+        artifactId: z.string().describe("The artifact ID"),
+        version: z
+          .string()
+          .optional()
+          .describe("The artifact version (default: 'active')"),
+      }),
+    },
+    async ({ artifactId, version }) => {
+      try {
+        const count = await context.odataClient.getValue(
+          buildResourcesCountPath(artifactId, version ?? "active")
+        );
+        return {
+          content: [{ type: "text" as const, text: count }],
         };
       } catch (error) {
         return {

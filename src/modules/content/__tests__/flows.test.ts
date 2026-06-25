@@ -39,8 +39,8 @@ describe("integration flow tools", () => {
     registerFlowTools(mockServer, context);
   });
 
-  it("registers all 14 tools", () => {
-    expect(handlers.size).toBe(14);
+  it("registers all 16 tools", () => {
+    expect(handlers.size).toBe(16);
     expect(handlers.has("list_designtime_artifacts")).toBe(true);
     expect(handlers.has("get_designtime_artifact")).toBe(true);
     expect(handlers.has("create_designtime_artifact")).toBe(true);
@@ -52,9 +52,11 @@ describe("integration flow tools", () => {
     expect(handlers.has("save_designtime_artifact_version")).toBe(true);
     expect(handlers.has("list_configurations")).toBe(true);
     expect(handlers.has("update_configuration")).toBe(true);
+    expect(handlers.has("count_configurations")).toBe(true);
     expect(handlers.has("list_resources")).toBe(true);
     expect(handlers.has("get_resource")).toBe(true);
     expect(handlers.has("download_resource")).toBe(true);
+    expect(handlers.has("count_resources")).toBe(true);
   });
 
   // --- 1. list_designtime_artifacts ---
@@ -921,6 +923,78 @@ describe("integration flow tools", () => {
       });
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain("OData error (404)");
+    });
+  });
+
+  // --- 15. count_configurations ---
+  describe("count_configurations", () => {
+    it("returns configuration count", async () => {
+      mockODataClient.getValue.mockResolvedValue("5");
+      const result = await handlers.get("count_configurations")!({
+        artifactId: "flow1",
+      });
+      expect(result.content[0].text).toBe("5");
+    });
+
+    it("calls correct $count path with default version", async () => {
+      mockODataClient.getValue.mockResolvedValue("3");
+      await handlers.get("count_configurations")!({ artifactId: "flow1" });
+      expect(mockODataClient.getValue).toHaveBeenCalledWith(
+        "/api/v1/IntegrationDesigntimeArtifacts(Id='flow1',Version='active')/Configurations/$count"
+      );
+    });
+
+    it("calls correct $count path with explicit version", async () => {
+      mockODataClient.getValue.mockResolvedValue("3");
+      await handlers.get("count_configurations")!({ artifactId: "flow1", version: "1.0.0" });
+      expect(mockODataClient.getValue).toHaveBeenCalledWith(
+        "/api/v1/IntegrationDesigntimeArtifacts(Id='flow1',Version='1.0.0')/Configurations/$count"
+      );
+    });
+
+    it("returns isError on failure", async () => {
+      mockODataClient.getValue.mockRejectedValue(
+        new Error("OData error (404): Resource not found")
+      );
+      const result = await handlers.get("count_configurations")!({ artifactId: "nonexistent" });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("OData error (404)");
+    });
+  });
+
+  // --- 16. count_resources ---
+  describe("count_resources", () => {
+    it("returns resources count", async () => {
+      mockODataClient.getValue.mockResolvedValue("12");
+      const result = await handlers.get("count_resources")!({
+        artifactId: "flow1",
+      });
+      expect(result.content[0].text).toBe("12");
+    });
+
+    it("calls correct $count path with default version", async () => {
+      mockODataClient.getValue.mockResolvedValue("12");
+      await handlers.get("count_resources")!({ artifactId: "flow1" });
+      expect(mockODataClient.getValue).toHaveBeenCalledWith(
+        "/api/v1/IntegrationDesigntimeArtifacts(Id='flow1',Version='active')/Resources/$count"
+      );
+    });
+
+    it("calls correct $count path with explicit version", async () => {
+      mockODataClient.getValue.mockResolvedValue("12");
+      await handlers.get("count_resources")!({ artifactId: "flow1", version: "2.0.0" });
+      expect(mockODataClient.getValue).toHaveBeenCalledWith(
+        "/api/v1/IntegrationDesigntimeArtifacts(Id='flow1',Version='2.0.0')/Resources/$count"
+      );
+    });
+
+    it("returns isError on failure", async () => {
+      mockODataClient.getValue.mockRejectedValue(
+        new Error("OData error (500): internal server error")
+      );
+      const result = await handlers.get("count_resources")!({ artifactId: "flow1" });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("OData error (500)");
     });
   });
 });

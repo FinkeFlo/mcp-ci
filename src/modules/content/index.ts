@@ -12,6 +12,7 @@ import { registerDesignGuidelineTools } from "./tools/design-guidelines.js";
 import { registerCustomTagTools } from "./tools/custom-tags.js";
 import { registerTypeArtifactTools } from "./tools/type-artifacts.js";
 import { registerAdapterTools } from "./tools/adapters.js";
+import { registerPackageArtifactTools } from "./tools/package-artifacts.js";
 
 export const contentModule: Module = {
   name: "content",
@@ -28,5 +29,6 @@ export const contentModule: Module = {
     registerCustomTagTools(server, context);
     registerTypeArtifactTools(server, context);
     registerAdapterTools(server, context);
+    registerPackageArtifactTools(server, context);
   },
 };
