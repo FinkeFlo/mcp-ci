@@ -39,12 +39,13 @@ describe("design guideline tools", () => {
     registerDesignGuidelineTools(mockServer, context);
   });
 
-  it("registers all 4 tools", () => {
-    expect(handlers.size).toBe(4);
+  it("registers all 5 tools", () => {
+    expect(handlers.size).toBe(5);
     expect(handlers.has("list_guideline_results")).toBe(true);
     expect(handlers.has("get_guideline_result")).toBe(true);
     expect(handlers.has("execute_guidelines")).toBe(true);
     expect(handlers.has("download_guideline_result")).toBe(true);
+    expect(handlers.has("download_sc_guideline_result")).toBe(true);
   });
 
   describe("list_guideline_results", () => {
@@ -363,6 +364,58 @@ describe("design guideline tools", () => {
         new Error("OData error (404): Resource not found")
       );
       const result = await handlers.get("download_guideline_result")!({
+        artifactId: "nonexistent",
+        version: "active",
+        executionId: "exec1",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("OData error (404)");
+    });
+  });
+
+  describe("download_sc_guideline_result", () => {
+    it("returns guideline result content for script collection", async () => {
+      mockODataClient.getValue.mockResolvedValue(
+        '{"result": "sc guideline data"}'
+      );
+      const result = await handlers.get("download_sc_guideline_result")!({
+        artifactId: "MySC",
+        version: "1.0.0",
+        executionId: "exec1",
+      });
+      expect(result.content[0].text).toContain("sc guideline data");
+    });
+
+    it("calls correct $value path for script collection", async () => {
+      mockODataClient.getValue.mockResolvedValue("data");
+      await handlers.get("download_sc_guideline_result")!({
+        artifactId: "MySC",
+        version: "1.0.0",
+        executionId: "exec1",
+      });
+      expect(mockODataClient.getValue).toHaveBeenCalledWith(
+        "/api/v1/ScriptCollectionDesigntimeArtifacts(Id='MySC',Version='1.0.0')/DesignGuidelineExecutionResults('exec1')/$value"
+      );
+    });
+
+    it("truncates large content", async () => {
+      const largeContent = "x".repeat(200 * 1024);
+      mockODataClient.getValue.mockResolvedValue(largeContent);
+      const result = await handlers.get("download_sc_guideline_result")!({
+        artifactId: "MySC",
+        version: "active",
+        executionId: "exec1",
+      });
+      const text = result.content[0].text;
+      expect(text).toContain("TRUNCATED");
+      expect(text).toContain("100KB");
+    });
+
+    it("returns isError on failure", async () => {
+      mockODataClient.getValue.mockRejectedValue(
+        new Error("OData error (404): Resource not found")
+      );
+      const result = await handlers.get("download_sc_guideline_result")!({
         artifactId: "nonexistent",
         version: "active",
         executionId: "exec1",

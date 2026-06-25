@@ -10,6 +10,7 @@ import type {
 import {
   buildTypeArtifactsPath,
   buildTypeArtifactPath,
+  buildTypeArtifactValuePath,
 } from "../queries.js";
 
 type TypeArtifact =
@@ -132,6 +133,47 @@ function registerTypeTools(
         const text = formatTypeArtifactDetail(artifact);
         return {
           content: [{ type: "text" as const, text }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+
+  // download tool
+  // @api GET /MessageTypeDesigntimeArtifacts(Id='{Id}',Version='{Version}')/$value
+  // @api GET /DataTypeDesigntimeArtifacts(Id='{Id}',Version='{Version}')/$value
+  // @api GET /FaultMessageTypeDesigntimeArtifacts(Id='{Id}',Version='{Version}')/$value
+  // @api GET /ServiceInterfaceDesigntimeArtifacts(Id='{Id}',Version='{Version}')/$value
+  server.registerTool(
+    `download_${toolPrefix}`,
+    {
+      description: `Download a ${displayName} artifact as a ZIP file.`,
+      inputSchema: z.object({
+        id: z.string().describe("The artifact ID"),
+        version: z
+          .string()
+          .optional()
+          .describe("The artifact version (default: 'active')"),
+      }),
+    },
+    async ({ id, version }) => {
+      try {
+        const content = await context.odataClient.getValue(
+          buildTypeArtifactValuePath(entityName, id, version ?? "active")
+        );
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Artifact '${id}' downloaded successfully. Content length: ${content.length} bytes (binary ZIP data).`,
+            },
+          ],
         };
       } catch (error) {
         return {

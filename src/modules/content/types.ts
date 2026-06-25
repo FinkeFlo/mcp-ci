@@ -176,3 +176,8 @@ export interface MdiDeltaToken {
   DeltaToken: string | null;
   LastUpdateTimestamp: string | null;
 }
+
+export interface PackageCustomTag {
+  Name: string;
+  Value: string;
+}

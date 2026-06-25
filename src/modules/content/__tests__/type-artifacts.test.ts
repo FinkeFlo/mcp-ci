@@ -39,16 +39,20 @@ describe("type artifact tools", () => {
     registerTypeArtifactTools(mockServer, context);
   });
 
-  it("registers all 8 tools", () => {
-    expect(handlers.size).toBe(8);
+  it("registers all 12 tools", () => {
+    expect(handlers.size).toBe(12);
     expect(handlers.has("list_message_types")).toBe(true);
     expect(handlers.has("get_message_type")).toBe(true);
+    expect(handlers.has("download_message_type")).toBe(true);
     expect(handlers.has("list_data_types")).toBe(true);
     expect(handlers.has("get_data_type")).toBe(true);
+    expect(handlers.has("download_data_type")).toBe(true);
     expect(handlers.has("list_fault_message_types")).toBe(true);
     expect(handlers.has("get_fault_message_type")).toBe(true);
+    expect(handlers.has("download_fault_message_type")).toBe(true);
     expect(handlers.has("list_service_interfaces")).toBe(true);
     expect(handlers.has("get_service_interface")).toBe(true);
+    expect(handlers.has("download_service_interface")).toBe(true);
   });
 
   describe("list_message_types", () => {
@@ -305,6 +309,94 @@ describe("type artifact tools", () => {
       expect(mockODataClient.getEntity).toHaveBeenCalledWith(
         "/api/v1/ServiceInterfaceDesigntimeArtifacts(Id='si1',Version='active')"
       );
+    });
+  });
+
+  describe("download_message_type", () => {
+    it("calls correct $value path with default version", async () => {
+      mockODataClient.getValue.mockResolvedValue("binary-zip-content");
+      await handlers.get("download_message_type")!({ id: "mt1" });
+      expect(mockODataClient.getValue).toHaveBeenCalledWith(
+        "/api/v1/MessageTypeDesigntimeArtifacts(Id='mt1',Version='active')/$value"
+      );
+    });
+
+    it("calls correct $value path with explicit version", async () => {
+      mockODataClient.getValue.mockResolvedValue("binary-zip-content");
+      await handlers.get("download_message_type")!({ id: "mt1", version: "1.0.0" });
+      expect(mockODataClient.getValue).toHaveBeenCalledWith(
+        "/api/v1/MessageTypeDesigntimeArtifacts(Id='mt1',Version='1.0.0')/$value"
+      );
+    });
+
+    it("returns success message with content length", async () => {
+      mockODataClient.getValue.mockResolvedValue("binary-zip-content");
+      const result = await handlers.get("download_message_type")!({ id: "mt1" });
+      expect(result.content[0].text).toContain("mt1");
+      expect(result.content[0].text).toContain("downloaded successfully");
+    });
+
+    it("returns isError on failure", async () => {
+      mockODataClient.getValue.mockRejectedValue(
+        new Error("OData error (404): Resource not found")
+      );
+      const result = await handlers.get("download_message_type")!({ id: "nonexistent" });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("OData error (404)");
+    });
+  });
+
+  describe("download_data_type", () => {
+    it("calls correct $value path", async () => {
+      mockODataClient.getValue.mockResolvedValue("binary-zip-content");
+      await handlers.get("download_data_type")!({ id: "dt1", version: "1.0.0" });
+      expect(mockODataClient.getValue).toHaveBeenCalledWith(
+        "/api/v1/DataTypeDesigntimeArtifacts(Id='dt1',Version='1.0.0')/$value"
+      );
+    });
+
+    it("returns isError on failure", async () => {
+      mockODataClient.getValue.mockRejectedValue(
+        new Error("OData error (500): internal server error")
+      );
+      const result = await handlers.get("download_data_type")!({ id: "dt1" });
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe("download_fault_message_type", () => {
+    it("calls correct $value path", async () => {
+      mockODataClient.getValue.mockResolvedValue("binary-zip-content");
+      await handlers.get("download_fault_message_type")!({ id: "fmt1" });
+      expect(mockODataClient.getValue).toHaveBeenCalledWith(
+        "/api/v1/FaultMessageTypeDesigntimeArtifacts(Id='fmt1',Version='active')/$value"
+      );
+    });
+
+    it("returns isError on failure", async () => {
+      mockODataClient.getValue.mockRejectedValue(
+        new Error("OData error (404): Resource not found")
+      );
+      const result = await handlers.get("download_fault_message_type")!({ id: "fmt1" });
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe("download_service_interface", () => {
+    it("calls correct $value path", async () => {
+      mockODataClient.getValue.mockResolvedValue("binary-zip-content");
+      await handlers.get("download_service_interface")!({ id: "si1", version: "2.0.0" });
+      expect(mockODataClient.getValue).toHaveBeenCalledWith(
+        "/api/v1/ServiceInterfaceDesigntimeArtifacts(Id='si1',Version='2.0.0')/$value"
+      );
+    });
+
+    it("returns isError on failure", async () => {
+      mockODataClient.getValue.mockRejectedValue(
+        new Error("OData error (404): Resource not found")
+      );
+      const result = await handlers.get("download_service_interface")!({ id: "si1" });
+      expect(result.isError).toBe(true);
     });
   });
 });
