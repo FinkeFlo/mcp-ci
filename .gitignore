@@ -4,3 +4,5 @@ config/tenants.json
 output/
 *.log
 .DS_Store
+.tmp/
+coverage-report.json
