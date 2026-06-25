@@ -50,6 +50,7 @@ function formatLogFile(f: LogFile): string {
 export const logfilesModule: Module = {
   name: "logfiles",
   register(server: McpServer, context: ModuleContext) {
+    // @api GET /LogFileArchives
     server.registerTool(
       "list_log_file_archives",
       {
@@ -85,6 +86,7 @@ export const logfilesModule: Module = {
       }
     );
 
+    // @api GET /LogFileArchives(Scope='{Scope}',LogFileType='{LogFileType}',NodeScope='worker')
     server.registerTool(
       "get_log_file_archive",
       {
@@ -120,6 +122,7 @@ export const logfilesModule: Module = {
       }
     );
 
+    // @api GET /LogFileArchives(Scope='{Scope}',LogFileType='{LogFileType}',NodeScope='worker')/$value
     server.registerTool(
       "download_log_file_archive",
       {
@@ -166,6 +169,7 @@ export const logfilesModule: Module = {
       }
     );
 
+    // @api GET /LogFiles
     server.registerTool(
       "list_log_files",
       {
@@ -228,6 +232,7 @@ export const logfilesModule: Module = {
       }
     );
 
+    // @api GET /LogFiles(Name='{Name}',Application='{Application}')
     server.registerTool(
       "get_log_file",
       {
@@ -258,6 +263,7 @@ export const logfilesModule: Module = {
       }
     );
 
+    // @api GET /LogFiles(Name='{Name}',Application='{Application}')/$value
     server.registerTool(
       "download_log_file",
       {

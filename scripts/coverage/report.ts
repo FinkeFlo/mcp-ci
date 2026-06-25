@@ -13,12 +13,11 @@ function opKey(spec: string, method: string, path: string): string {
   return `${spec}${SEP}${method}${SEP}${path}`;
 }
 
-// An operation belongs to a scope when its spec matches and it passes the
-// scope's tag include/exclude filters.
+// An operation belongs to a scope when its spec matches and, if the scope
+// restricts tags, the operation carries one of them.
 function scopeMatches(scope: SpecScope, op: Operation): boolean {
   if (op.spec !== scope.spec) return false;
   if (scope.tags && !scope.tags.includes(op.tag)) return false;
-  if (scope.excludeTags && scope.excludeTags.includes(op.tag)) return false;
   return true;
 }
 

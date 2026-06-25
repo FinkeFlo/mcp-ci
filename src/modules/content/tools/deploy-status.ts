@@ -8,6 +8,7 @@ export function registerDeployStatusTools(
   server: McpServer,
   context: ModuleContext
 ) {
+  // @api GET /BuildAndDeployStatus(TaskId='{taskId}')
   server.registerTool(
     "get_deploy_status",
     {

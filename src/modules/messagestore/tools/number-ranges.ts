@@ -22,6 +22,7 @@ export function registerNumberRangeTools(
   server: McpServer,
   context: ModuleContext
 ) {
+  // @api GET /NumberRanges
   server.registerTool(
     "list_number_ranges",
     {
@@ -57,6 +58,7 @@ export function registerNumberRangeTools(
     }
   );
 
+  // @api GET /NumberRanges('{objectName}')
   server.registerTool(
     "get_number_range",
     {
@@ -85,6 +87,7 @@ export function registerNumberRangeTools(
     }
   );
 
+  // @api POST /NumberRanges
   server.registerTool(
     "create_number_range",
     {
@@ -161,6 +164,8 @@ export function registerNumberRangeTools(
     }
   );
 
+  // @api GET /NumberRanges('{objectName}')
+  // @api PUT /NumberRanges('{objectName}')
   server.registerTool(
     "update_number_range",
     {
@@ -244,6 +249,8 @@ export function registerNumberRangeTools(
     }
   );
 
+  // @api GET /NumberRanges('{objectName}')
+  // @api DELETE /NumberRanges('{objectName}')
   server.registerTool(
     "delete_number_range",
     {

@@ -63,6 +63,7 @@ export function registerB2BArchivingTools(
   server: McpServer,
   context: ModuleContext
 ) {
+  // @api GET /B2BArchivingConfigurations('{TenantName}')
   server.registerTool(
     "get_b2b_archiving_config",
     {
@@ -87,6 +88,7 @@ export function registerB2BArchivingTools(
     }
   );
 
+  // @api GET /B2BArchivingKeyPerformanceIndicators
   server.registerTool(
     "get_b2b_archiving_kpis",
     {
@@ -128,6 +130,7 @@ export function registerB2BArchivingTools(
     }
   );
 
+  // @api POST /activateB2BArchivingConfiguration
   server.registerTool(
     "activate_b2b_archiving",
     {

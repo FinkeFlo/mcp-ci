@@ -84,6 +84,27 @@ describe("scanSource", () => {
     const tools = scanSource(dir);
     expect(tools.find((t) => t.tool === "should_be_ignored")).toBeUndefined();
   });
+
+  // Some SAP paths contain spaces inside template params, e.g. '{Source ID}'.
+  // The path must be captured whole, not truncated at the first space.
+  it("captures paths that contain spaces", () => {
+    const d = mkdtempSync(join(tmpdir(), "src-space-"));
+    const mod = join(d, "idmapper");
+    mkdirSync(mod, { recursive: true });
+    writeFileSync(
+      join(mod, "tools.ts"),
+      `// @api GET /IdMapFromIds('{Source ID}')/ToIds\nserver.registerTool("get_id_mappings", {}, async () => {});\n`
+    );
+    try {
+      const tools = scanSource(d);
+      const tool = tools.find((t) => t.tool === "get_id_mappings")!;
+      expect(tool.annotations).toEqual([
+        { method: "GET", path: "/IdMapFromIds('{Source ID}')/ToIds" },
+      ]);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("annotationsAbove blank line handling", () => {

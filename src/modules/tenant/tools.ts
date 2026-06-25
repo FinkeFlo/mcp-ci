@@ -5,6 +5,7 @@ import type { ModuleContext, Module } from "../../core/types.js";
 export const tenantModule: Module = {
   name: "tenant",
   register(server: McpServer, context: ModuleContext) {
+    // @api none
     server.registerTool(
       "get_tenant",
       {
@@ -36,6 +37,7 @@ export const tenantModule: Module = {
       }
     );
 
+    // @api none
     server.registerTool(
       "set_tenant",
       {

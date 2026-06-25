@@ -58,6 +58,7 @@ function formatResourceDetail(r: Resource): string {
 
 export function registerFlowTools(server: McpServer, context: ModuleContext) {
   // 1. list_designtime_artifacts
+  // @api GET /IntegrationPackages('{Id}')/IntegrationDesigntimeArtifacts
   server.registerTool(
     "list_designtime_artifacts",
     {
@@ -99,6 +100,7 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
   );
 
   // 2. get_designtime_artifact
+  // @api GET /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')
   server.registerTool(
     "get_designtime_artifact",
     {
@@ -134,6 +136,7 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
   );
 
   // 3. create_designtime_artifact
+  // @api POST /IntegrationDesigntimeArtifacts
   server.registerTool(
     "create_designtime_artifact",
     {
@@ -199,6 +202,8 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
   );
 
   // 4. update_designtime_artifact
+  // @api GET /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')
+  // @api PUT /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')
   server.registerTool(
     "update_designtime_artifact",
     {
@@ -269,6 +274,8 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
   );
 
   // 5. delete_designtime_artifact
+  // @api GET /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')
+  // @api DELETE /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')
   server.registerTool(
     "delete_designtime_artifact",
     {
@@ -323,6 +330,7 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
   );
 
   // 6. deploy_designtime_artifact
+  // @api POST /DeployIntegrationDesigntimeArtifact
   server.registerTool(
     "deploy_designtime_artifact",
     {
@@ -373,6 +381,7 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
   );
 
   // 7. validate_designtime_artifact
+  // @api POST /ValidateIntegrationDesigntimeArtifact
   server.registerTool(
     "validate_designtime_artifact",
     {
@@ -423,6 +432,7 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
   );
 
   // 8. download_designtime_artifact
+  // @api GET /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')/$value
   server.registerTool(
     "download_designtime_artifact",
     {
@@ -461,6 +471,7 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
   );
 
   // 9. save_designtime_artifact_version
+  // @api POST /IntegrationDesigntimeArtifactSaveAsVersion
   server.registerTool(
     "save_designtime_artifact_version",
     {
@@ -515,6 +526,7 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
   );
 
   // 10. list_configurations
+  // @api GET /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')/Configurations
   server.registerTool(
     "list_configurations",
     {
@@ -560,6 +572,7 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
   );
 
   // 11. update_configuration
+  // @api PUT /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')/$links/Configurations('{ParameterKey}')
   server.registerTool(
     "update_configuration",
     {
@@ -634,6 +647,7 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
   );
 
   // 12. list_resources
+  // @api GET /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')/Resources
   server.registerTool(
     "list_resources",
     {
@@ -679,6 +693,7 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
   );
 
   // 13. get_resource
+  // @api GET /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')/Resources(Name='{Name}',ResourceType='{Type}')
   server.registerTool(
     "get_resource",
     {
@@ -712,6 +727,7 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
   );
 
   // 14. download_resource
+  // @api GET /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')/Resources(Name='{Name}',ResourceType='{Type}')/$value
   server.registerTool(
     "download_resource",
     {

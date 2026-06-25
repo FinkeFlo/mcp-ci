@@ -28,6 +28,7 @@ export function registerMessageMappingTools(
   context: ModuleContext
 ) {
   // 1. list_message_mappings
+  // @api GET /MessageMappingDesigntimeArtifacts
   server.registerTool(
     "list_message_mappings",
     {
@@ -67,6 +68,7 @@ export function registerMessageMappingTools(
   );
 
   // 2. get_message_mapping
+  // @api GET /MessageMappingDesigntimeArtifacts(Id='{Id}',Version='{Version}')
   server.registerTool(
     "get_message_mapping",
     {
@@ -102,6 +104,7 @@ export function registerMessageMappingTools(
   );
 
   // 3. create_message_mapping
+  // @api POST /MessageMappingDesigntimeArtifacts
   server.registerTool(
     "create_message_mapping",
     {
@@ -173,6 +176,8 @@ export function registerMessageMappingTools(
   );
 
   // 4. update_message_mapping
+  // @api GET /MessageMappingDesigntimeArtifacts(Id='{Id}',Version='{Version}')
+  // @api PUT /MessageMappingDesigntimeArtifacts(Id='{Id}',Version='{Version}')
   server.registerTool(
     "update_message_mapping",
     {
@@ -250,6 +255,8 @@ export function registerMessageMappingTools(
   );
 
   // 5. delete_message_mapping
+  // @api GET /MessageMappingDesigntimeArtifacts(Id='{Id}',Version='{Version}')
+  // @api DELETE /MessageMappingDesigntimeArtifacts(Id='{Id}',Version='{Version}')
   server.registerTool(
     "delete_message_mapping",
     {
@@ -302,6 +309,7 @@ export function registerMessageMappingTools(
   );
 
   // 6. deploy_message_mapping
+  // @api POST /DeployMessageMappingDesigntimeArtifact
   server.registerTool(
     "deploy_message_mapping",
     {
@@ -352,6 +360,7 @@ export function registerMessageMappingTools(
   );
 
   // 7. save_message_mapping_version
+  // @api POST /MessageMappingDesigntimeArtifactSaveAsVersion
   server.registerTool(
     "save_message_mapping_version",
     {
@@ -406,6 +415,7 @@ export function registerMessageMappingTools(
   );
 
   // 8. download_message_mapping
+  // @api GET /MessageMappingDesigntimeArtifacts(Id='{Id}',Version='{Version}')/$value
   server.registerTool(
     "download_message_mapping",
     {

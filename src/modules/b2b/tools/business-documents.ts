@@ -146,6 +146,7 @@ export function registerBusinessDocumentTools(
   context: ModuleContext
 ) {
   // 1. list_business_documents
+  // @api GET /BusinessDocuments
   server.registerTool(
     "list_business_documents",
     {
@@ -220,6 +221,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 2. get_business_document
+  // @api GET /BusinessDocuments('{Id}')
   server.registerTool(
     "get_business_document",
     {
@@ -263,6 +265,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 3. count_business_documents
+  // @api GET /BusinessDocuments/$count
   server.registerTool(
     "count_business_documents",
     {
@@ -296,6 +299,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 4. get_sender_technical_ack
+  // @api GET /BusinessDocuments('{Id}')/SenderTechnicalAcknowledgement
   server.registerTool(
     "get_sender_technical_ack",
     {
@@ -339,6 +343,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 5. get_receiver_technical_ack
+  // @api GET /BusinessDocuments('{Id}')/ReceiverTechnicalAcknowledgement
   server.registerTool(
     "get_receiver_technical_ack",
     {
@@ -382,6 +387,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 6. get_sender_functional_ack
+  // @api GET /BusinessDocuments('{Id}')/SenderFunctionalAcknowledgement
   server.registerTool(
     "get_sender_functional_ack",
     {
@@ -425,6 +431,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 7. get_receiver_functional_ack
+  // @api GET /BusinessDocuments('{Id}')/ReceiverFunctionalAcknowledgement
   server.registerTool(
     "get_receiver_functional_ack",
     {
@@ -468,6 +475,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 8. get_business_document_events
+  // @api GET /BusinessDocuments('{Id}')/BusinessDocumentProcessingEvents
   server.registerTool(
     "get_business_document_events",
     {
@@ -518,6 +526,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 9. get_business_document_payloads
+  // @api GET /BusinessDocuments('{Id}')/BusinessDocumentPayloads
   server.registerTool(
     "get_business_document_payloads",
     {
@@ -568,6 +577,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 10. download_business_document_payload
+  // @api GET /BusinessDocumentPayloads('{Id}')/$value
   server.registerTool(
     "download_business_document_payload",
     {
@@ -604,6 +614,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 11. get_business_document_notes
+  // @api GET /BusinessDocuments('{Id}')/BusinessDocumentNotes
   server.registerTool(
     "get_business_document_notes",
     {
@@ -654,6 +665,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 12. get_business_document_custom_objects
+  // @api GET /BusinessDocuments('{Id}')/CustomObjects
   server.registerTool(
     "get_business_document_custom_objects",
     {
@@ -704,6 +716,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 13. get_business_document_ext_fields
+  // @api GET /BusinessDocuments('{Id}')/BusinessDocumentExtFields
   server.registerTool(
     "get_business_document_ext_fields",
     {
@@ -754,6 +767,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 14. get_business_document_last_error
+  // @api GET /BusinessDocuments('{Id}')/LastErrorDetails
   server.registerTool(
     "get_business_document_last_error",
     {
@@ -804,6 +818,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 15. get_business_document_headers
+  // @api GET /BusinessDocuments('{Id}')/BusinessDocumentProtocolHeaders
   server.registerTool(
     "get_business_document_headers",
     {
@@ -854,6 +869,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 16. get_technical_acknowledgement
+  // @api GET /TechnicalAcknowledgements('{Id}')
   server.registerTool(
     "get_technical_acknowledgement",
     {
@@ -897,6 +913,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 17. download_technical_acknowledgement
+  // @api GET /TechnicalAcknowledgements('{Id}')/$value
   server.registerTool(
     "download_technical_acknowledgement",
     {
@@ -933,6 +950,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 18. get_functional_acknowledgement
+  // @api GET /FunctionalAcknowledgements('{Id}')
   server.registerTool(
     "get_functional_acknowledgement",
     {
@@ -976,6 +994,7 @@ export function registerBusinessDocumentTools(
   );
 
   // 19. download_functional_acknowledgement
+  // @api GET /FunctionalAcknowledgements('{Id}')/$value
   server.registerTool(
     "download_functional_acknowledgement",
     {

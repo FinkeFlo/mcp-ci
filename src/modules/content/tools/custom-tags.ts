@@ -11,6 +11,7 @@ export function registerCustomTagTools(
   context: ModuleContext
 ) {
   // 1. get_custom_tags_config
+  // @api GET /CustomTagConfigurations('CustomTags')/$value
   server.registerTool(
     "get_custom_tags_config",
     {
@@ -38,6 +39,7 @@ export function registerCustomTagTools(
   );
 
   // 2. update_custom_tags_config
+  // @api POST /CustomTagConfigurations
   server.registerTool(
     "update_custom_tags_config",
     {

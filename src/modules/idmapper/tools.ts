@@ -7,6 +7,8 @@ import { buildFromIdPath, buildToIdPath } from "./queries.js";
 export const idMapperModule: Module = {
   name: "idmapper",
   register(server: McpServer, context: ModuleContext) {
+    // @api GET /IdMapFromIds('{Source ID}')/ToIds
+    // @api GET /IdMapToIds('{Target ID}')/FromId2s
     server.registerTool(
       "get_id_mappings",
       {

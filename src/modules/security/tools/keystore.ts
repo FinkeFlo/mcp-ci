@@ -138,6 +138,7 @@ export function registerKeystoreTools(
   // Group 1: Keystore Entries
   // ==========================================
 
+  // @api GET /KeystoreEntries
   server.registerTool(
     "list_keystore_entries",
     {
@@ -183,6 +184,7 @@ export function registerKeystoreTools(
     }
   );
 
+  // @api GET /KeystoreEntries('{Hexalias}')
   server.registerTool(
     "get_keystore_entry",
     {
@@ -215,6 +217,7 @@ export function registerKeystoreTools(
     }
   );
 
+  // @api PUT /KeystoreEntries('{Hexalias}')
   server.registerTool(
     "rename_keystore_entry",
     {
@@ -264,6 +267,7 @@ export function registerKeystoreTools(
     }
   );
 
+  // @api DELETE /KeystoreEntries('{Hexalias}')
   server.registerTool(
     "delete_keystore_entry",
     {
@@ -330,6 +334,7 @@ export function registerKeystoreTools(
     }
   );
 
+  // @api GET /KeystoreEntries('69645F727361')/Sshkey/$value
   server.registerTool(
     "export_ssh_key",
     {
@@ -362,6 +367,7 @@ export function registerKeystoreTools(
   // Group 2: Keystores
   // ==========================================
 
+  // @api GET /Keystores('{KeystoreName}')
   server.registerTool(
     "get_keystore",
     {
@@ -406,6 +412,7 @@ export function registerKeystoreTools(
     }
   );
 
+  // @api GET /Keystores('{KeystoreName}')/Size/$value
   server.registerTool(
     "get_keystore_size",
     {
@@ -441,6 +448,7 @@ export function registerKeystoreTools(
     }
   );
 
+  // @api GET /KeystoreResources('{KeystoreName}')
   server.registerTool(
     "export_keystore",
     {
@@ -476,6 +484,7 @@ export function registerKeystoreTools(
     }
   );
 
+  // @api POST /KeystoreResources
   server.registerTool(
     "import_keystore",
     {
@@ -536,6 +545,7 @@ export function registerKeystoreTools(
     }
   );
 
+  // @api PUT /KeystoreResources('system')
   server.registerTool(
     "restore_or_delete_keystore",
     {
@@ -628,6 +638,7 @@ export function registerKeystoreTools(
   // Group 3: Keystore History
   // ==========================================
 
+  // @api GET /HistoryKeystoreEntries
   server.registerTool(
     "list_history_keystore_entries",
     {
@@ -672,6 +683,7 @@ export function registerKeystoreTools(
     }
   );
 
+  // @api GET /HistoryKeystoreEntries('{Hexalias}')
   server.registerTool(
     "get_history_keystore_entry",
     {
@@ -702,6 +714,8 @@ export function registerKeystoreTools(
     }
   );
 
+  // @api GET /HistoryKeystoreEntries('{Hexalias}')
+  // @api PUT /HistoryKeystoreEntries('{Hexalias}')
   server.registerTool(
     "restore_history_entry",
     {

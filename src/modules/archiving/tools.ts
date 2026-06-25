@@ -57,6 +57,7 @@ function formatKpi(kpi: ArchivingKeyPerformanceIndicators): string {
 export const archivingModule: Module = {
   name: "archiving",
   register(server: McpServer, context: ModuleContext) {
+    // @api GET /ArchivingConfigurations('{TenantName}')
     server.registerTool(
       "get_archiving_config",
       {
@@ -79,6 +80,7 @@ export const archivingModule: Module = {
       }
     );
 
+    // @api GET /ArchivingKeyPerformanceIndicators
     server.registerTool(
       "get_archiving_kpis",
       {
@@ -118,6 +120,7 @@ export const archivingModule: Module = {
       }
     );
 
+    // @api POST /activateArchivingConfiguration
     server.registerTool(
       "activate_archiving",
       {

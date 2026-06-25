@@ -45,6 +45,7 @@ async function getLoggingStatus(context: ModuleContext): Promise<string> {
 export const loggingModule: Module = {
   name: "logging",
   register(server: McpServer, context: ModuleContext) {
+    // @api GET /ExternalLoggingActivationStatus('{TenantName}')
     server.registerTool(
       "get_external_logging_status",
       {
@@ -67,6 +68,7 @@ export const loggingModule: Module = {
       }
     );
 
+    // @api POST /activateExternalLogging
     server.registerTool(
       "activate_external_logging",
       {
@@ -115,6 +117,7 @@ export const loggingModule: Module = {
       }
     );
 
+    // @api POST /deactivateExternalLogging
     server.registerTool(
       "deactivate_external_logging",
       {

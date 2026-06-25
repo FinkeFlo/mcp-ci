@@ -18,6 +18,7 @@ function formatEntry(e: GenericIdempotentRepositoryEntry): string {
 export const idempotentModule: Module = {
   name: "idempotent",
   register(server: McpServer, context: ModuleContext) {
+    // @api GET /GenericIdempotentRepositoryEntries
     server.registerTool(
       "get_idempotent_entries",
       {
@@ -61,6 +62,7 @@ export const idempotentModule: Module = {
       }
     );
 
+    // @api GET /GenericIdempotentRepositoryEntries(HexVendor='{HexVendor}',HexSource='{HexSource}',HexEntry='{HexEntry}',HexComponent='{HexComponent}')
     server.registerTool(
       "get_idempotent_entry",
       {
@@ -97,6 +99,7 @@ export const idempotentModule: Module = {
       }
     );
 
+    // @api DELETE /GenericIdempotentRepositoryEntries(HexVendor='{HexVendor}',HexSource='{HexSource}',HexEntry='{HexEntry}',HexComponent='{HexComponent}')
     server.registerTool(
       "delete_idempotent_entry",
       {

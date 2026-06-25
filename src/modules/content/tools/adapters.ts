@@ -14,6 +14,8 @@ export function registerAdapterTools(
   server: McpServer,
   context: ModuleContext
 ) {
+  // @api POST /IntegrationAdapterDesigntimeArtifacts
+  // @api POST /DeployIntegrationAdapterDesigntimeArtifact
   server.registerTool(
     "deploy_integration_adapter",
     {
@@ -70,6 +72,7 @@ export function registerAdapterTools(
     }
   );
 
+  // @api DELETE /IntegrationAdapterDesigntimeArtifacts(Id='{Id}')
   server.registerTool(
     "delete_integration_adapter",
     {
@@ -116,6 +119,7 @@ export function registerAdapterTools(
     }
   );
 
+  // @api GET /MDIDeltaToken(Operation='{Operation}',Entity='{Entity}',Version='{Version}')
   server.registerTool(
     "get_mdi_delta_token",
     {

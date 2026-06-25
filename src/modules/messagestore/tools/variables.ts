@@ -22,6 +22,7 @@ export function registerVariableTools(
   server: McpServer,
   context: ModuleContext
 ) {
+  // @api GET /Variables
   server.registerTool(
     "list_variables",
     {
@@ -57,6 +58,7 @@ export function registerVariableTools(
     }
   );
 
+  // @api GET /Variables(VariableName='{VariableName}',IntegrationFlow='{IntegrationFlowId}')
   server.registerTool(
     "get_variable",
     {
@@ -89,6 +91,8 @@ export function registerVariableTools(
     }
   );
 
+  // @api GET /Variables(VariableName='{VariableName}',IntegrationFlow='{IntegrationFlowId}')
+  // @api DELETE /Variables(VariableName='{VariableName}',IntegrationFlow='{IntegrationFlowId}')
   server.registerTool(
     "delete_variable",
     {
@@ -141,6 +145,7 @@ export function registerVariableTools(
     }
   );
 
+  // @api GET /Variables(VariableName='{VariableName}',IntegrationFlow='{IntegrationFlowId}')/$value
   server.registerTool(
     "download_variable",
     {
