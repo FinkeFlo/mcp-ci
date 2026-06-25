@@ -4,12 +4,22 @@ import type {
   ModuleCoverage,
   Operation,
   OrphanAnnotation,
+  SpecScope,
   ToolEntry,
 } from "./types.js";
 
 const SEP = "\n";
 function opKey(spec: string, method: string, path: string): string {
   return `${spec}${SEP}${method}${SEP}${path}`;
+}
+
+// An operation belongs to a scope when its spec matches and it passes the
+// scope's tag include/exclude filters.
+function scopeMatches(scope: SpecScope, op: Operation): boolean {
+  if (op.spec !== scope.spec) return false;
+  if (scope.tags && !scope.tags.includes(op.tag)) return false;
+  if (scope.excludeTags && scope.excludeTags.includes(op.tag)) return false;
+  return true;
 }
 
 export function buildReport(
@@ -26,8 +36,9 @@ export function buildReport(
   const modules: ModuleCoverage[] = [];
 
   for (const module of [...moduleNames].sort()) {
-    const specs = MODULE_SPECS[module] ?? [];
-    const universe = operations.filter((o) => specs.includes(o.spec));
+    const scopes = MODULE_SPECS[module] ?? [];
+    const specNames = [...new Set(scopes.map((s) => s.spec))];
+    const universe = operations.filter((o) => scopes.some((scope) => scopeMatches(scope, o)));
     const universeKeys = new Set(universe.map((o) => opKey(o.spec, o.method, o.path)));
     const moduleTools = tools.filter((t) => t.module === module);
 
@@ -43,7 +54,7 @@ export function buildReport(
         continue;
       }
       for (const a of real) {
-        const matchSpec = specs.find((s) => universeKeys.has(opKey(s, a.method, a.path)));
+        const matchSpec = specNames.find((s) => universeKeys.has(opKey(s, a.method, a.path)));
         if (matchSpec) covered.add(opKey(matchSpec, a.method, a.path));
         else orphanAnnotations.push({ tool: t.tool, method: a.method, path: a.path });
       }
@@ -53,7 +64,7 @@ export function buildReport(
 
     modules.push({
       module,
-      specs,
+      specs: specNames,
       totalOps: universe.length,
       coveredOps: covered.size,
       gaps,

@@ -67,4 +67,35 @@ describe("buildReport", () => {
     ]);
     expect(m.coveredOps).toBe(1);
   });
+
+  // A shared spec (MessageProcessingLogs.yaml) is partitioned among modules by
+  // OpenAPI tag. An operation tagged for another module must not leak into this
+  // module's universe.
+  it("scopes a shared spec to the module's tags", () => {
+    const ops: Operation[] = [
+      { spec: "MessageProcessingLogs.yaml", method: "GET", path: "/MessageProcessingLogs", tag: "Logs", summary: "" },
+      { spec: "MessageProcessingLogs.yaml", method: "GET", path: "/IdempotentRepositoryEntries", tag: "Idempotent Repository", summary: "" },
+    ];
+    const report = buildReport(ops, [], "docs/api", "src/modules");
+    const monitoringUni = report.modules.find((m) => m.module === "monitoring")!;
+    const idempotentUni = report.modules.find((m) => m.module === "idempotent")!;
+    // monitoring owns "Logs", not "Idempotent Repository"
+    expect(monitoringUni.gaps.map((g) => g.path)).toEqual(["/MessageProcessingLogs"]);
+    // idempotent owns the other slice of the same file
+    expect(idempotentUni.gaps.map((g) => g.path)).toEqual(["/IdempotentRepositoryEntries"]);
+  });
+
+  // b2b owns all of B2BScenarios.yaml except the "Data Archiving" tag, which
+  // belongs to the archiving module.
+  it("honors excludeTags so archiving ops do not leak into b2b", () => {
+    const ops: Operation[] = [
+      { spec: "B2BScenarios.yaml", method: "GET", path: "/BusinessDocuments", tag: "Business Documents", summary: "" },
+      { spec: "B2BScenarios.yaml", method: "POST", path: "/activateB2BArchivingConfiguration", tag: "Data Archiving", summary: "" },
+    ];
+    const report = buildReport(ops, [], "docs/api", "src/modules");
+    const b2b = report.modules.find((m) => m.module === "b2b")!;
+    const archiving = report.modules.find((m) => m.module === "archiving")!;
+    expect(b2b.gaps.map((g) => g.path)).toEqual(["/BusinessDocuments"]);
+    expect(archiving.gaps.map((g) => g.path)).toEqual(["/activateB2BArchivingConfiguration"]);
+  });
 });
