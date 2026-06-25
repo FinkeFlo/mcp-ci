@@ -63,3 +63,9 @@ export interface MessageStoreEntry {
   TimeStamp: string | null;
   HasAttachments: boolean | null;
 }
+
+export interface ErrorInformation {
+  MessageGuid: string;
+  Type: string | null;
+  LastErrorModelStepId: string | null;
+}
