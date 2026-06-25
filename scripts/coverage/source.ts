@@ -28,7 +28,8 @@ function annotationsAbove(lines: string[], registerLine: number): Annotation[] {
       else collected.push({ method, path: m[2] ?? "" });
       continue;
     }
-    if (line.trim() === "") continue; // tolerate blank lines between annotation and call
+    // Blank line is only tolerated before any annotation has been collected
+    if (line.trim() === "" && collected.length === 0) continue;
     break; // any other line ends the contiguous block
   }
   return collected.reverse(); // restore top-to-bottom order

@@ -85,3 +85,47 @@ describe("scanSource", () => {
     expect(tools.find((t) => t.tool === "should_be_ignored")).toBeUndefined();
   });
 });
+
+describe("annotationsAbove blank line handling", () => {
+  let dir: string;
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "src-blank-"));
+    const mod = join(dir, "demo", "tools");
+    mkdirSync(mod, { recursive: true });
+
+    const blankWithinAnnotationBlock = `
+// @api GET /A
+
+// @api POST /B
+server.registerTool("split_tool", {}, async () => {});
+`;
+
+    const blankBetweenBlockAndCall = `
+// @api GET /C
+// @api POST /D
+
+server.registerTool("blank_before_call", {}, async () => {});
+`;
+
+    writeFileSync(join(mod, "split.ts"), blankWithinAnnotationBlock);
+    writeFileSync(join(mod, "blank.ts"), blankBetweenBlockAndCall);
+  });
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("only attaches the contiguous annotation block when a blank line separates annotations", () => {
+    const tools = scanSource(dir);
+    const split = tools.find((t) => t.tool === "split_tool")!;
+    // Only POST /B should attach; GET /A is separated by blank line
+    expect(split.annotations).toEqual([{ method: "POST", path: "/B" }]);
+  });
+
+  it("attaches both annotations when blank line is only between block and call", () => {
+    const tools = scanSource(dir);
+    const blank = tools.find((t) => t.tool === "blank_before_call")!;
+    // Both should attach; blank line is only after the contiguous block
+    expect(blank.annotations).toEqual([
+      { method: "GET", path: "/C" },
+      { method: "POST", path: "/D" },
+    ]);
+  });
+});
