@@ -40,6 +40,7 @@ export function registerCertificateTools(
   // --- Group 1: Certificates ---
 
   // 1. export_certificate
+  // @api GET /KeystoreEntries('{Hexalias}')/Certificate/$value
   server.registerTool(
     "export_certificate",
     {
@@ -87,6 +88,7 @@ export function registerCertificateTools(
   );
 
   // 2. import_certificate
+  // @api PUT /CertificateResources('{Hexalias}')/$value
   server.registerTool(
     "import_certificate",
     {
@@ -161,6 +163,7 @@ export function registerCertificateTools(
   );
 
   // 3. import_certificate_chain
+  // @api PUT /CertificateChainResources('{Hexalias}')/$value
   server.registerTool(
     "import_certificate_chain",
     {
@@ -227,6 +230,7 @@ export function registerCertificateTools(
   // --- Group 2: Key Pair Operations ---
 
   // 4. generate_key_pair
+  // @api POST /KeyPairGenerationRequests
   server.registerTool(
     "generate_key_pair",
     {
@@ -355,6 +359,7 @@ export function registerCertificateTools(
   );
 
   // 5. generate_rsa_key_pair
+  // @api POST /RSAKeyGenerationRequests
   server.registerTool(
     "generate_rsa_key_pair",
     {
@@ -477,6 +482,7 @@ export function registerCertificateTools(
   );
 
   // 6. generate_ssh_key_pair
+  // @api POST /SSHKeyGenerationRequests
   server.registerTool(
     "generate_ssh_key_pair",
     {
@@ -597,6 +603,7 @@ export function registerCertificateTools(
   );
 
   // 7. import_key_pair
+  // @api POST /KeyPairResources
   server.registerTool(
     "import_key_pair",
     {
@@ -691,6 +698,7 @@ export function registerCertificateTools(
   // --- Group 3: Certificate Chain & CSR ---
 
   // 8. get_chain_certificates
+  // @api GET /KeystoreEntries('{Hexalias}')/ChainCertificates
   server.registerTool(
     "get_chain_certificates",
     {
@@ -738,6 +746,7 @@ export function registerCertificateTools(
   );
 
   // 9. get_signing_request
+  // @api GET /KeystoreEntries('{Hexalias}')/SigningRequest/$value
   server.registerTool(
     "get_signing_request",
     {

@@ -21,6 +21,7 @@ const MAX_TRACE_PAYLOAD = 100 * 1024;
 export const tracingModule: Module = {
   name: "tracing",
   register(server: McpServer, context: ModuleContext) {
+    // @api GET /MessageProcessingLogs('{MessageGuid}')/Runs
     // get_message_runs
     server.registerTool(
       "get_message_runs",
@@ -78,6 +79,7 @@ export const tracingModule: Module = {
       }
     );
 
+    // @api GET /MessageProcessingLogRuns('{RunId}')/RunSteps
     // get_run_steps
     server.registerTool(
       "get_run_steps",
@@ -135,6 +137,10 @@ export const tracingModule: Module = {
       }
     );
 
+    // @api GET /MessageProcessingLogRunSteps(RunId='{RunId}',ChildCount={ChildCount})/TraceMessages
+    // @api GET /TraceMessages({TraceId}L)/$value
+    // @api GET /TraceMessages({TraceId}L)/Properties
+    // @api GET /TraceMessages({TraceId}L)/ExchangeProperties
     // get_trace
     server.registerTool(
       "get_trace",

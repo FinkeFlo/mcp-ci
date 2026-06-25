@@ -26,6 +26,7 @@ function formatBroker(b: JmsBroker): string {
 }
 
 export function registerJmsTools(server: McpServer, context: ModuleContext) {
+  // @api GET /JmsBrokers('Broker1')
   server.registerTool(
     "get_jms_broker",
     {

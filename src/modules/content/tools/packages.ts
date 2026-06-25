@@ -52,6 +52,7 @@ export function registerPackageTools(
   server: McpServer,
   context: ModuleContext
 ) {
+  // @api GET /IntegrationPackages
   server.registerTool(
     "list_packages",
     {
@@ -97,6 +98,7 @@ export function registerPackageTools(
     }
   );
 
+  // @api GET /IntegrationPackages('{Id}')
   server.registerTool(
     "get_package",
     {
@@ -127,6 +129,7 @@ export function registerPackageTools(
     }
   );
 
+  // @api POST /IntegrationPackages
   server.registerTool(
     "create_package",
     {
@@ -197,6 +200,8 @@ export function registerPackageTools(
     }
   );
 
+  // @api GET /IntegrationPackages('{Id}')
+  // @api PUT /IntegrationPackages('{Id}')
   server.registerTool(
     "update_package",
     {
@@ -275,6 +280,8 @@ export function registerPackageTools(
     }
   );
 
+  // @api GET /IntegrationPackages('{Id}')
+  // @api DELETE /IntegrationPackages('{Id}')
   server.registerTool(
     "delete_package",
     {
@@ -325,6 +332,7 @@ export function registerPackageTools(
     }
   );
 
+  // @api GET /IntegrationPackages('{Id}')/$value
   server.registerTool(
     "download_package",
     {
@@ -358,6 +366,7 @@ export function registerPackageTools(
     }
   );
 
+  // @api POST /CopyIntegrationPackage
   server.registerTool(
     "copy_package",
     {

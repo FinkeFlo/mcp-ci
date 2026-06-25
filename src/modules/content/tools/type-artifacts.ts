@@ -50,6 +50,10 @@ function registerTypeTools(
   displayName: string
 ) {
   // list tool
+  // @api GET /MessageTypeDesigntimeArtifacts
+  // @api GET /DataTypeDesigntimeArtifacts
+  // @api GET /FaultMessageTypeDesigntimeArtifacts
+  // @api GET /ServiceInterfaceDesigntimeArtifacts
   server.registerTool(
     `list_${toolPrefix}s`,
     {
@@ -103,6 +107,10 @@ function registerTypeTools(
   );
 
   // get tool
+  // @api GET /MessageTypeDesigntimeArtifacts(Id='{Id}',Version='{Version}')
+  // @api GET /DataTypeDesigntimeArtifacts(Id='{Id}',Version='{Version}')
+  // @api GET /FaultMessageTypeDesigntimeArtifacts(Id='{Id}',Version='{Version}')
+  // @api GET /ServiceInterfaceDesigntimeArtifacts(Id='{Id}',Version='{Version}')
   server.registerTool(
     `get_${toolPrefix}`,
     {

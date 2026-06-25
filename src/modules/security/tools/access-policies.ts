@@ -81,6 +81,7 @@ export function registerAccessPolicyTools(
 ) {
   // ─── Certificate-to-User Mappings (Neo only) ───
 
+  // @api GET /CertificateUserMappings
   server.registerTool(
     "list_cert_user_mappings",
     {
@@ -133,6 +134,7 @@ export function registerAccessPolicyTools(
     }
   );
 
+  // @api GET /CertificateUserMappings('{Id}')
   server.registerTool(
     "get_cert_user_mapping",
     {
@@ -163,6 +165,7 @@ export function registerAccessPolicyTools(
     }
   );
 
+  // @api POST /CertificateUserMappings
   server.registerTool(
     "create_cert_user_mapping",
     {
@@ -222,6 +225,8 @@ export function registerAccessPolicyTools(
     }
   );
 
+  // @api GET /CertificateUserMappings('{Id}')
+  // @api DELETE /CertificateUserMappings('{Id}')
   server.registerTool(
     "delete_cert_user_mapping",
     {
@@ -278,6 +283,7 @@ export function registerAccessPolicyTools(
 
   // ─── Access Policies ───
 
+  // @api GET /AccessPolicies
   server.registerTool(
     "list_access_policies",
     {
@@ -355,6 +361,7 @@ export function registerAccessPolicyTools(
     }
   );
 
+  // @api POST /AccessPolicies
   server.registerTool(
     "create_access_policy",
     {
@@ -436,6 +443,8 @@ export function registerAccessPolicyTools(
     }
   );
 
+  // @api GET /AccessPolicies({Id})
+  // @api PATCH /AccessPolicies({Id})
   server.registerTool(
     "update_access_policy",
     {
@@ -505,6 +514,8 @@ export function registerAccessPolicyTools(
     }
   );
 
+  // @api GET /AccessPolicies({Id})
+  // @api DELETE /AccessPolicies({Id})
   server.registerTool(
     "delete_access_policy",
     {
@@ -557,6 +568,7 @@ export function registerAccessPolicyTools(
 
   // ─── Artifact References ───
 
+  // @api GET /ArtifactReferences
   server.registerTool(
     "list_artifact_references",
     {
@@ -632,6 +644,7 @@ export function registerAccessPolicyTools(
     }
   );
 
+  // @api POST /ArtifactReferences
   server.registerTool(
     "create_artifact_reference",
     {
@@ -709,6 +722,8 @@ export function registerAccessPolicyTools(
     }
   );
 
+  // @api GET /ArtifactReferences({Id})
+  // @api DELETE /ArtifactReferences({Id})
   server.registerTool(
     "delete_artifact_reference",
     {

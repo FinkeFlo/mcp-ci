@@ -67,6 +67,7 @@ export function registerEntryTools(
   server: McpServer,
   context: ModuleContext
 ) {
+  // @api GET /MessageProcessingLogs('{MessageGuid}')/MessageStoreEntries
   server.registerTool(
     "list_message_store_entries_by_guid",
     {
@@ -107,6 +108,7 @@ export function registerEntryTools(
     }
   );
 
+  // @api GET /MessageStoreEntries('{MessageStoreEntryId}')
   server.registerTool(
     "get_message_store_entry",
     {
@@ -136,6 +138,7 @@ export function registerEntryTools(
     }
   );
 
+  // @api GET /MessageStoreEntries('{MessageStoreEntryId}')/$value
   server.registerTool(
     "download_message_store_entry",
     {
@@ -171,6 +174,7 @@ export function registerEntryTools(
     }
   );
 
+  // @api GET /MessageStoreEntries('{MessageStoreEntryId}')/Attachments
   server.registerTool(
     "list_message_store_entry_attachments",
     {
@@ -208,6 +212,7 @@ export function registerEntryTools(
     }
   );
 
+  // @api GET /MessageStoreEntryAttachments('{MessageStoreEntryAttachmentId}')
   server.registerTool(
     "get_message_store_entry_attachment",
     {
@@ -238,6 +243,7 @@ export function registerEntryTools(
     }
   );
 
+  // @api GET /MessageStoreEntryAttachments('{MessageStoreEntryAttachmentId}')/$value
   server.registerTool(
     "download_message_store_entry_attachment",
     {
@@ -276,6 +282,7 @@ export function registerEntryTools(
     }
   );
 
+  // @api GET /MessageStoreEntryAttachments('{MessageStoreEntryAttachmentId}')/Properties
   server.registerTool(
     "list_message_store_entry_attachment_properties",
     {
@@ -316,6 +323,7 @@ export function registerEntryTools(
     }
   );
 
+  // @api GET /MessageStoreEntryAttachmentProperties(AttachmentId='{MessageStoreEntryAttachmentId}',Name='{Name}')
   server.registerTool(
     "get_message_store_entry_attachment_property",
     {
@@ -347,6 +355,7 @@ export function registerEntryTools(
     }
   );
 
+  // @api GET /MessageStoreEntries('{MessageStoreEntryId}')/Properties
   server.registerTool(
     "list_message_store_entry_properties",
     {
@@ -387,6 +396,7 @@ export function registerEntryTools(
     }
   );
 
+  // @api GET /MessageStoreEntryProperties(MessageId='{MessageStoreEntryID}',Name='{PropertyName}')
   server.registerTool(
     "get_message_store_entry_property",
     {

@@ -76,6 +76,7 @@ export function registerOrphanedInterchangeTools(
   context: ModuleContext
 ) {
   // 1. list_orphaned_interchanges
+  // @api GET /OrphanedInterchanges
   server.registerTool(
     "list_orphaned_interchanges",
     {
@@ -155,6 +156,7 @@ export function registerOrphanedInterchangeTools(
   );
 
   // 2. get_orphaned_interchange
+  // @api GET /OrphanedInterchanges('{Id}')
   server.registerTool(
     "get_orphaned_interchange",
     {
@@ -202,6 +204,7 @@ export function registerOrphanedInterchangeTools(
   );
 
   // 3. count_orphaned_interchanges
+  // @api GET /OrphanedInterchanges/$count
   server.registerTool(
     "count_orphaned_interchanges",
     {
@@ -237,6 +240,7 @@ export function registerOrphanedInterchangeTools(
   );
 
   // 4. get_orphaned_interchange_errors
+  // @api GET /OrphanedInterchanges('{Id}')/ErrorDetails
   server.registerTool(
     "get_orphaned_interchange_errors",
     {
@@ -280,6 +284,7 @@ export function registerOrphanedInterchangeTools(
   );
 
   // 5. get_orphaned_interchange_events
+  // @api GET /OrphanedInterchanges('{Id}')/BusinessDocumentProcessingEvent
   server.registerTool(
     "get_orphaned_interchange_events",
     {
@@ -339,6 +344,7 @@ export function registerOrphanedInterchangeTools(
   );
 
   // 6. get_orphaned_interchange_payloads
+  // @api GET /OrphanedInterchanges('{Id}')/BusinessDocumentPayloads
   server.registerTool(
     "get_orphaned_interchange_payloads",
     {
@@ -398,6 +404,7 @@ export function registerOrphanedInterchangeTools(
   );
 
   // 7. get_orphaned_interchange_headers
+  // @api GET /OrphanedInterchanges('{Id}')/BusinessDocumentProtocolHeaders
   server.registerTool(
     "get_orphaned_interchange_headers",
     {

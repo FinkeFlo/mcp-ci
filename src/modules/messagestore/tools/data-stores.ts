@@ -40,6 +40,7 @@ export function registerDataStoreTools(
   server: McpServer,
   context: ModuleContext
 ) {
+  // @api GET /DataStores
   server.registerTool(
     "list_data_stores",
     {
@@ -85,6 +86,7 @@ export function registerDataStoreTools(
     }
   );
 
+  // @api GET /DataStores(DataStoreName='{DataStoreName}',IntegrationFlow='{IntegrationFlowId}',Type='{Type}')
   server.registerTool(
     "get_data_store",
     {
@@ -122,6 +124,8 @@ export function registerDataStoreTools(
     }
   );
 
+  // @api GET /DataStores(DataStoreName='{DataStoreName}',IntegrationFlow='{IntegrationFlowId}',Type='{Type}')
+  // @api DELETE /DataStores(DataStoreName='{DataStoreName}',IntegrationFlow='{IntegrationFlowId}',Type='{Type}')
   server.registerTool(
     "delete_data_store",
     {
@@ -180,6 +184,7 @@ export function registerDataStoreTools(
     }
   );
 
+  // @api GET /DataStoreEntries
   server.registerTool(
     "list_data_store_entries",
     {
@@ -232,6 +237,7 @@ export function registerDataStoreTools(
     }
   );
 
+  // @api GET /DataStores(DataStoreName='{DataStoreName}',IntegrationFlow='{IntegrationFlowId}',Type='{Type}')/Entries
   server.registerTool(
     "list_data_store_entries_by_store",
     {
@@ -282,6 +288,7 @@ export function registerDataStoreTools(
     }
   );
 
+  // @api GET /DataStoreEntries(Id='{Id}',DataStoreName='{DataStoreName}',IntegrationFlow='{IntegrationFlowId}',Type='{Type}')
   server.registerTool(
     "get_data_store_entry",
     {
@@ -318,6 +325,8 @@ export function registerDataStoreTools(
     }
   );
 
+  // @api GET /DataStoreEntries(Id='{Id}',DataStoreName='{DataStoreName}',IntegrationFlow='{IntegrationFlowId}',Type='{Type}')
+  // @api DELETE /DataStoreEntries(Id='{Id}',DataStoreName='{DataStoreName}',IntegrationFlow='{IntegrationFlowId}',Type='{Type}')
   server.registerTool(
     "delete_data_store_entry",
     {
@@ -379,6 +388,7 @@ export function registerDataStoreTools(
     }
   );
 
+  // @api GET /DataStoreEntries(Id='{Id}',DataStoreName='{DataStoreName}',IntegrationFlow='{IntegrationFlowId}',Type='{Type}')/$value
   server.registerTool(
     "download_data_store_entry",
     {

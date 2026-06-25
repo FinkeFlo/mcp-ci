@@ -28,6 +28,7 @@ export function registerScriptCollectionTools(
   context: ModuleContext
 ) {
   // 1. list_script_collections
+  // @api GET /IntegrationPackages('{Id}')/ScriptCollectionDesigntimeArtifacts
   server.registerTool(
     "list_script_collections",
     {
@@ -71,6 +72,7 @@ export function registerScriptCollectionTools(
   );
 
   // 2. get_script_collection
+  // @api GET /ScriptCollectionDesigntimeArtifacts(Id='{Id}',Version='{Version}')
   server.registerTool(
     "get_script_collection",
     {
@@ -106,6 +108,7 @@ export function registerScriptCollectionTools(
   );
 
   // 3. create_script_collection
+  // @api POST /ScriptCollectionDesigntimeArtifacts
   server.registerTool(
     "create_script_collection",
     {
@@ -180,6 +183,8 @@ export function registerScriptCollectionTools(
   );
 
   // 4. update_script_collection
+  // @api GET /ScriptCollectionDesigntimeArtifacts(Id='{Id}',Version='{Version}')
+  // @api PUT /ScriptCollectionDesigntimeArtifacts(Id='{Id}',Version='{Version}')
   server.registerTool(
     "update_script_collection",
     {
@@ -257,6 +262,8 @@ export function registerScriptCollectionTools(
   );
 
   // 5. delete_script_collection
+  // @api GET /ScriptCollectionDesigntimeArtifacts(Id='{Id}',Version='{Version}')
+  // @api DELETE /ScriptCollectionDesigntimeArtifacts(Id='{Id}',Version='{Version}')
   server.registerTool(
     "delete_script_collection",
     {
@@ -311,6 +318,7 @@ export function registerScriptCollectionTools(
   );
 
   // 6. deploy_script_collection
+  // @api POST /DeployScriptCollectionDesigntimeArtifact
   server.registerTool(
     "deploy_script_collection",
     {
@@ -361,6 +369,7 @@ export function registerScriptCollectionTools(
   );
 
   // 7. save_script_collection_version
+  // @api POST /ScriptCollectionDesigntimeArtifactSaveAsVersion
   server.registerTool(
     "save_script_collection_version",
     {
@@ -415,6 +424,7 @@ export function registerScriptCollectionTools(
   );
 
   // 8. download_script_collection
+  // @api GET /ScriptCollectionDesigntimeArtifacts(Id='{Id}',Version='{Version}')/$value
   server.registerTool(
     "download_script_collection",
     {

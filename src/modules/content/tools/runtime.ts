@@ -32,6 +32,7 @@ export function registerRuntimeTools(
   server: McpServer,
   context: ModuleContext
 ) {
+  // @api GET /IntegrationRuntimeArtifacts
   server.registerTool(
     "list_runtime_artifacts",
     {
@@ -95,6 +96,7 @@ export function registerRuntimeTools(
     }
   );
 
+  // @api GET /IntegrationRuntimeArtifacts('{Id}')
   server.registerTool(
     "get_runtime_artifact",
     {
@@ -125,6 +127,7 @@ export function registerRuntimeTools(
     }
   );
 
+  // @api GET /IntegrationRuntimeArtifacts/$count
   server.registerTool(
     "count_runtime_artifacts",
     {
@@ -157,6 +160,7 @@ export function registerRuntimeTools(
     }
   );
 
+  // @api GET /IntegrationRuntimeArtifacts('{Id}')/ErrorInformation/$value
   server.registerTool(
     "get_runtime_artifact_error",
     {
@@ -195,6 +199,8 @@ export function registerRuntimeTools(
     }
   );
 
+  // @api GET /IntegrationRuntimeArtifacts('{Id}')
+  // @api DELETE /IntegrationRuntimeArtifacts('{Id}')
   server.registerTool(
     "undeploy_runtime_artifact",
     {

@@ -118,6 +118,7 @@ export function registerCredentialTools(
 ) {
   // ─── User Credentials ───────────────────────────────────────────────
 
+  // @api GET /UserCredentials
   server.registerTool(
     "list_user_credentials",
     {
@@ -153,6 +154,7 @@ export function registerCredentialTools(
     }
   );
 
+  // @api GET /UserCredentials('{Name}')
   server.registerTool(
     "get_user_credential",
     {
@@ -183,6 +185,7 @@ export function registerCredentialTools(
     }
   );
 
+  // @api POST /UserCredentials
   server.registerTool(
     "create_user_credential",
     {
@@ -254,6 +257,8 @@ export function registerCredentialTools(
     }
   );
 
+  // @api GET /UserCredentials('{Name}')
+  // @api PUT /UserCredentials('{Name}')
   server.registerTool(
     "update_user_credential",
     {
@@ -339,6 +344,8 @@ export function registerCredentialTools(
     }
   );
 
+  // @api GET /UserCredentials('{Name}')
+  // @api DELETE /UserCredentials('{Name}')
   server.registerTool(
     "delete_user_credential",
     {
@@ -391,6 +398,7 @@ export function registerCredentialTools(
 
   // ─── Secure Parameters ──────────────────────────────────────────────
 
+  // @api GET /SecureParameters
   server.registerTool(
     "list_secure_parameters",
     {
@@ -426,6 +434,7 @@ export function registerCredentialTools(
     }
   );
 
+  // @api GET /SecureParameters('{Name}')
   server.registerTool(
     "get_secure_parameter",
     {
@@ -456,6 +465,7 @@ export function registerCredentialTools(
     }
   );
 
+  // @api POST /SecureParameters
   server.registerTool(
     "create_secure_parameter",
     {
@@ -513,6 +523,8 @@ export function registerCredentialTools(
     }
   );
 
+  // @api GET /SecureParameters('{Name}')
+  // @api PUT /SecureParameters('{Name}')
   server.registerTool(
     "update_secure_parameter",
     {
@@ -581,6 +593,8 @@ export function registerCredentialTools(
     }
   );
 
+  // @api GET /SecureParameters('{Name}')
+  // @api DELETE /SecureParameters('{Name}')
   server.registerTool(
     "delete_secure_parameter",
     {
@@ -633,6 +647,7 @@ export function registerCredentialTools(
 
   // ─── OAuth2 Client Credentials ──────────────────────────────────────
 
+  // @api GET /OAuth2ClientCredentials
   server.registerTool(
     "list_oauth2_credentials",
     {
@@ -681,6 +696,7 @@ export function registerCredentialTools(
     }
   );
 
+  // @api GET /OAuth2ClientCredentials('{Name}')
   server.registerTool(
     "get_oauth2_credential",
     {
@@ -718,6 +734,7 @@ export function registerCredentialTools(
     }
   );
 
+  // @api POST /OAuth2ClientCredentials
   server.registerTool(
     "create_oauth2_credential",
     {
@@ -820,6 +837,8 @@ export function registerCredentialTools(
     }
   );
 
+  // @api GET /OAuth2ClientCredentials('{Name}')
+  // @api PUT /OAuth2ClientCredentials('{Name}')
   server.registerTool(
     "update_oauth2_credential",
     {
@@ -955,6 +974,8 @@ export function registerCredentialTools(
     }
   );
 
+  // @api GET /OAuth2ClientCredentials('{Name}')
+  // @api DELETE /OAuth2ClientCredentials('{Name}')
   server.registerTool(
     "delete_oauth2_credential",
     {

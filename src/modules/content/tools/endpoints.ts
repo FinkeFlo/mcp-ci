@@ -22,6 +22,7 @@ export function registerEndpointTools(
   server: McpServer,
   context: ModuleContext
 ) {
+  // @api GET /ServiceEndpoints
   server.registerTool(
     "list_service_endpoints",
     {
@@ -87,6 +88,7 @@ export function registerEndpointTools(
     }
   );
 
+  // @api GET /ServiceEndpoints/$count
   server.registerTool(
     "count_service_endpoints",
     {

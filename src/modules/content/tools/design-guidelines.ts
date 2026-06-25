@@ -31,6 +31,8 @@ export function registerDesignGuidelineTools(
   context: ModuleContext
 ) {
   // 1. list_guideline_results
+  // @api GET /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')/DesignGuidelineExecutionResults
+  // @api GET /ScriptCollectionDesigntimeArtifacts(Id='{Id}',Version='{Version}')/DesignGuidelineExecutionResults
   server.registerTool(
     "list_guideline_results",
     {
@@ -83,6 +85,8 @@ export function registerDesignGuidelineTools(
   );
 
   // 2. get_guideline_result
+  // @api GET /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')/DesignGuidelineExecutionResults('{ExecutionId}')
+  // @api GET /ScriptCollectionDesigntimeArtifacts(Id='{Id}',Version='{Version}')/DesignGuidelineExecutionResults('{ExecutionId}')
   server.registerTool(
     "get_guideline_result",
     {
@@ -124,6 +128,8 @@ export function registerDesignGuidelineTools(
   );
 
   // 3. execute_guidelines
+  // @api POST /ExecuteIntegrationDesigntimeArtifactsGuidelines
+  // @api POST /ExecuteScriptCollectionDesigntimeArtifactsGuidelines
   server.registerTool(
     "execute_guidelines",
     {
@@ -180,6 +186,7 @@ export function registerDesignGuidelineTools(
   );
 
   // 4. download_guideline_result
+  // @api GET /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')/DesignGuidelineExecutionResults('{ExecutionId}')/$value
   server.registerTool(
     "download_guideline_result",
     {
