@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { monitoringModule } from "../tools.js";
 import type { ModuleContext } from "../../../core/types.js";
-import type { MessageProcessingLog, MessageProcessingLogAttachment, MessageStoreEntry } from "../types.js";
+import type { MessageProcessingLog, MessageProcessingLogAttachment, MessageStoreEntry, ErrorInformation } from "../types.js";
 
 function makeMpl(overrides: Partial<MessageProcessingLog> = {}): MessageProcessingLog {
   return {
@@ -339,6 +339,38 @@ describe("monitoring tools", () => {
       const result = await handlers.get("get_message_store_entries")!({
         messageGuid: "guid-1",
       });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("OData error");
+    });
+  });
+
+  describe("get_error_info", () => {
+    it("returns Type and LastErrorModelStepId for a message", async () => {
+      const entity: ErrorInformation = {
+        MessageGuid: "guid-1",
+        Type: "InconsistencyException",
+        LastErrorModelStepId: "CallActivity_42",
+      };
+      mockODataClient.getEntity.mockResolvedValue(entity);
+
+      const result = await handlers.get("get_error_info")!({
+        messageGuid: "guid-1",
+      });
+
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text).toContain("InconsistencyException");
+      expect(result.content[0].text).toContain("CallActivity_42");
+    });
+
+    it("returns isError true on failure", async () => {
+      mockODataClient.getEntity.mockRejectedValue(
+        new Error("OData error (404): not found")
+      );
+
+      const result = await handlers.get("get_error_info")!({
+        messageGuid: "guid-missing",
+      });
+
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain("OData error");
     });

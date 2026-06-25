@@ -7,8 +7,9 @@ import type {
   AdapterAttribute,
   MessageProcessingLogAttachment,
   MessageStoreEntry,
+  ErrorInformation,
 } from "./types.js";
-import { buildListMessagesParams, buildGetErrorsParams, buildCountParams } from "./queries.js";
+import { buildListMessagesParams, buildGetErrorsParams, buildCountParams, buildErrorInformationPath } from "./queries.js";
 
 const API_PATH = "/api/v1/MessageProcessingLogs";
 
@@ -452,6 +453,41 @@ export const monitoringModule: Module = {
                 text: `Found ${attachments.length} attachment(s):\n\n${lines.join("\n---\n")}`,
               },
             ],
+          };
+        } catch (error) {
+          return {
+            isError: true,
+            content: [
+              { type: "text" as const, text: (error as Error).message },
+            ],
+          };
+        }
+      }
+    );
+    // @api GET /MessageProcessingLogs('{MessageGuid}')/ErrorInformation
+    server.registerTool(
+      "get_error_info",
+      {
+        description:
+          "Get the ErrorInformation entity (metadata) for a message processing log: Type and LastErrorModelStepId",
+        inputSchema: z.object({
+          messageGuid: z
+            .string()
+            .describe("The MessageGuid of the message processing log"),
+        }),
+      },
+      async ({ messageGuid }) => {
+        try {
+          const entity = await context.odataClient.getEntity<ErrorInformation>(
+            buildErrorInformationPath(messageGuid)
+          );
+          const lines = [
+            `MessageGuid: ${entity.MessageGuid}`,
+            `Type: ${entity.Type ?? "n/a"}`,
+            `LastErrorModelStepId: ${entity.LastErrorModelStepId ?? "n/a"}`,
+          ];
+          return {
+            content: [{ type: "text" as const, text: lines.join("\n") }],
           };
         } catch (error) {
           return {

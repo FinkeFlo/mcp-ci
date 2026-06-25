@@ -90,6 +90,10 @@ export function buildCountParams(
   };
 }
 
+export function buildErrorInformationPath(messageGuid: string): string {
+  return `/api/v1/MessageProcessingLogs('${messageGuid}')/ErrorInformation`;
+}
+
 export function buildGetErrorsParams(filters: {
   from?: string;
 }): ODataParams {
