@@ -39,8 +39,8 @@ describe("certificate and key pair tools", () => {
     registerCertificateTools(mockServer, context);
   });
 
-  it("registers all 9 tools", () => {
-    expect(handlers.size).toBe(9);
+  it("registers all 10 tools", () => {
+    expect(handlers.size).toBe(10);
     expect(handlers.has("export_certificate")).toBe(true);
     expect(handlers.has("import_certificate")).toBe(true);
     expect(handlers.has("import_certificate_chain")).toBe(true);
@@ -50,6 +50,7 @@ describe("certificate and key pair tools", () => {
     expect(handlers.has("import_key_pair")).toBe(true);
     expect(handlers.has("get_chain_certificates")).toBe(true);
     expect(handlers.has("get_signing_request")).toBe(true);
+    expect(handlers.has("download_chain_resource")).toBe(true);
   });
 
   // --- 1. export_certificate ---
@@ -709,6 +710,32 @@ describe("certificate and key pair tools", () => {
         new Error("OData error (404): Resource not found")
       );
       const result = await handlers.get("get_signing_request")!({
+        hexalias: "nonexistent",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("OData error (404)");
+    });
+  });
+
+  describe("download_chain_resource", () => {
+    it("returns certificate chain resource bytes", async () => {
+      mockODataClient.getValue.mockResolvedValue(
+        "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"
+      );
+      const result = await handlers.get("download_chain_resource")!({
+        hexalias: "abc123",
+      });
+      expect(result.content[0].text).toContain("BEGIN CERTIFICATE");
+      expect(mockODataClient.getValue).toHaveBeenCalledWith(
+        "/api/v1/KeystoreEntries('abc123')/ChainResource/$value"
+      );
+    });
+
+    it("returns isError on failure", async () => {
+      mockODataClient.getValue.mockRejectedValue(
+        new Error("OData error (404): Resource not found")
+      );
+      const result = await handlers.get("download_chain_resource")!({
         hexalias: "nonexistent",
       });
       expect(result.isError).toBe(true);

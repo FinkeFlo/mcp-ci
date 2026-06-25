@@ -12,6 +12,7 @@ import {
   buildKeyPairResourcesPath,
   buildChainCertificatesPath,
   buildSigningRequestPath,
+  buildChainResourceValuePath,
 } from "../queries.js";
 
 function parseODataDate(value: string | null): string {
@@ -762,6 +763,38 @@ export function registerCertificateTools(
       try {
         const content = await context.odataClient.getValue(
           buildSigningRequestPath(hexalias)
+        );
+        return {
+          content: [{ type: "text" as const, text: content }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: (error as Error).message },
+          ],
+        };
+      }
+    }
+  );
+
+  // 10. download_chain_resource
+  // @api GET /KeystoreEntries('{Hexalias}')/ChainResource/$value
+  server.registerTool(
+    "download_chain_resource",
+    {
+      description:
+        "Download the certificate chain resource bytes for a keystore entry.",
+      inputSchema: z.object({
+        hexalias: z
+          .string()
+          .describe("Hex-encoded alias of the keystore entry"),
+      }),
+    },
+    async ({ hexalias }) => {
+      try {
+        const content = await context.odataClient.getValue(
+          buildChainResourceValuePath(hexalias)
         );
         return {
           content: [{ type: "text" as const, text: content }],
