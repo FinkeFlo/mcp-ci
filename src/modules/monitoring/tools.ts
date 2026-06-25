@@ -28,6 +28,7 @@ export const monitoringModule: Module = {
   name: "monitoring",
   register(server: McpServer, context: ModuleContext) {
     // --- list_messages ---
+    // @api GET /MessageProcessingLogs
     server.registerTool(
       "list_messages",
       {
@@ -111,6 +112,10 @@ export const monitoringModule: Module = {
     );
 
     // --- get_message ---
+    // @api GET /MessageProcessingLogs('{MessageGuid}')
+    // @api GET /MessageProcessingLogs('{MessageGuid}')/AdapterAttributes
+    // @api GET /MessageProcessingLogs('{MessageGuid}')/CustomHeaderProperties
+    // @api GET /MessageProcessingLogs('{MessageGuid}')/ErrorInformation/$value
     server.registerTool(
       "get_message",
       {
@@ -203,6 +208,7 @@ export const monitoringModule: Module = {
     );
 
     // --- count_messages ---
+    // @api GET /MessageProcessingLogs/$count
     server.registerTool(
       "count_messages",
       {
@@ -280,6 +286,8 @@ export const monitoringModule: Module = {
     );
 
     // --- get_errors ---
+    // @api GET /MessageProcessingLogs
+    // @api GET /MessageProcessingLogs('{MessageGuid}')/ErrorInformation/$value
     server.registerTool(
       "get_errors",
       {
@@ -379,6 +387,7 @@ export const monitoringModule: Module = {
       }
     );
     // --- get_attachments ---
+    // @api GET /MessageProcessingLogs('{MessageGuid}')/Attachments
     server.registerTool(
       "get_attachments",
       {
@@ -455,6 +464,7 @@ export const monitoringModule: Module = {
       }
     );
     // --- get_message_store_entries ---
+    // @api GET /MessageProcessingLogs('{MessageGuid}')/MessageStoreEntries
     server.registerTool(
       "get_message_store_entries",
       {
