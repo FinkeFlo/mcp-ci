@@ -14,3 +14,11 @@ export function buildEntryPath(
 ): string {
   return `/api/v1/GenericIdempotentRepositoryEntries(HexVendor='${toHex(vendor)}',HexSource='${toHex(source)}',HexEntry='${toHex(entry)}',HexComponent='${toHex(component)}')`;
 }
+
+export function buildSimpleEntriesPath(id: string): string {
+  return `/api/v1/IdempotentRepositoryEntries?id=${encodeURIComponent(id)}`;
+}
+
+export function buildSimpleEntryPath(source: string, entry: string): string {
+  return `/api/v1/IdempotentRepositoryEntries(HexSource='${toHex(source)}',HexEntry='${toHex(entry)}')`;
+}

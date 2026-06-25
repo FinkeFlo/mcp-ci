@@ -1,8 +1,18 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod/v4";
 import type { Module, ModuleContext } from "../../core/types.js";
-import type { GenericIdempotentRepositoryEntry } from "./types.js";
-import { buildEntriesPath, buildEntryPath } from "./queries.js";
+import type { GenericIdempotentRepositoryEntry, IdempotentRepositoryEntry } from "./types.js";
+import { buildEntriesPath, buildEntryPath, buildSimpleEntriesPath, buildSimpleEntryPath } from "./queries.js";
+
+function formatSimpleEntry(e: IdempotentRepositoryEntry): string {
+  return [
+    `  Source: ${e.Source ?? "n/a"}`,
+    `  Entry: ${e.Entry ?? "n/a"}`,
+    `  Component: ${e.Component ?? "n/a"}`,
+    `  CreationTime: ${e.CreationTime ?? "n/a"}`,
+    `  ExpirationTime: ${e.ExpirationTime ?? "n/a"}`,
+  ].join("\n");
+}
 
 function formatEntry(e: GenericIdempotentRepositoryEntry): string {
   return [
@@ -88,6 +98,144 @@ export const idempotentModule: Module = {
                 type: "text" as const,
                 text: `Idempotent Repository Entry:\n${formatEntry(e)}`,
               },
+            ],
+          };
+        } catch (error) {
+          return {
+            isError: true,
+            content: [{ type: "text" as const, text: (error as Error).message }],
+          };
+        }
+      }
+    );
+
+    // @api GET /IdempotentRepositoryEntries
+    server.registerTool(
+      "list_idempotent_entries",
+      {
+        description:
+          "List Idempotent Repository entries (non-generic, 2-key) by entry ID in SAP Cloud Integration. Deprecated endpoint — prefer get_idempotent_entries for newer tenants.",
+        inputSchema: z.object({
+          id: z.string().describe("The Entry ID to look up (plaintext)"),
+        }),
+      },
+      async ({ id }) => {
+        try {
+          const entries =
+            await context.odataClient.getCollection<IdempotentRepositoryEntry>(
+              buildSimpleEntriesPath(id)
+            );
+
+          if (entries.length === 0) {
+            return {
+              content: [{ type: "text" as const, text: "No entries found." }],
+            };
+          }
+
+          const output = entries
+            .map((e, i) => `[Entry ${i + 1}]\n${formatSimpleEntry(e)}`)
+            .join("\n\n");
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `${entries.length} entry/entries found:\n\n${output}`,
+              },
+            ],
+          };
+        } catch (error) {
+          return {
+            isError: true,
+            content: [{ type: "text" as const, text: (error as Error).message }],
+          };
+        }
+      }
+    );
+
+    // @api GET /IdempotentRepositoryEntries(HexSource='{HexSource}',HexEntry='{HexEntry}')
+    server.registerTool(
+      "get_idempotent_entry_simple",
+      {
+        description:
+          "Get a specific Idempotent Repository entry (non-generic, 2-key) by source and entry in SAP Cloud Integration. Deprecated endpoint — prefer get_idempotent_entry for newer tenants.",
+        inputSchema: z.object({
+          source: z.string().describe("The Source (plaintext), e.g. user@host for SFTP or generated ID for XI"),
+          entry: z.string().describe("The Entry ID (plaintext), e.g. InputFolder/file.xml for SFTP or XI message ID"),
+        }),
+      },
+      async ({ source, entry }) => {
+        try {
+          const e =
+            await context.odataClient.getEntity<IdempotentRepositoryEntry>(
+              buildSimpleEntryPath(source, entry)
+            );
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Idempotent Repository Entry:\n${formatSimpleEntry(e)}`,
+              },
+            ],
+          };
+        } catch (error) {
+          return {
+            isError: true,
+            content: [{ type: "text" as const, text: (error as Error).message }],
+          };
+        }
+      }
+    );
+
+    // @api DELETE /IdempotentRepositoryEntries(HexSource='{HexSource}',HexEntry='{HexEntry}')
+    server.registerTool(
+      "delete_idempotent_entry_simple",
+      {
+        description:
+          "Delete an Idempotent Repository entry (non-generic, 2-key) in SAP Cloud Integration. Without confirm:true, shows a preview and requires confirmation. Deprecated endpoint — prefer delete_idempotent_entry for newer tenants.",
+        inputSchema: z.object({
+          source: z.string().describe("The Source (plaintext), e.g. user@host for SFTP or generated ID for XI"),
+          entry: z.string().describe("The Entry ID (plaintext), e.g. InputFolder/file.xml for SFTP or XI message ID"),
+          confirm: z
+            .boolean()
+            .optional()
+            .describe("Set to true to confirm deletion"),
+        }),
+      },
+      async ({ source, entry, confirm }) => {
+        const path = buildSimpleEntryPath(source, entry);
+
+        if (!confirm) {
+          try {
+            const e =
+              await context.odataClient.getEntity<IdempotentRepositoryEntry>(
+                path
+              );
+
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Entry to be deleted:\n${formatSimpleEntry(e)}\n\nCall again with confirm: true to delete.`,
+                },
+              ],
+            };
+          } catch (error) {
+            return {
+              isError: true,
+              content: [
+                { type: "text" as const, text: (error as Error).message },
+              ],
+            };
+          }
+        }
+
+        try {
+          await context.odataClient.delete(path);
+          return {
+            content: [
+              { type: "text" as const, text: "Entry deleted successfully." },
             ],
           };
         } catch (error) {
