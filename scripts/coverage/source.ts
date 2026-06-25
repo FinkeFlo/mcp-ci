@@ -6,7 +6,9 @@ import type { Annotation, ToolEntry } from "./types.js";
 // params like '{Source ID}'), so the path group captures the rest of the line.
 const ANNOTATION_RE = /^\s*\/\/\s*@api\s+(\S+)(?:\s+(.+?))?\s*$/;
 const REGISTER_RE = /server\.registerTool\(/;
-const NAME_RE = /["']([^"']+)["']/;
+// tool name is the first quoted string after registerTool( — single, double,
+// or backtick (factory tools use template-literal names like `list_${x}s`).
+const NAME_RE = /["'`]([^"'`]+)["'`]/;
 
 function walkTsFiles(dir: string): string[] {
   const out: string[] = [];

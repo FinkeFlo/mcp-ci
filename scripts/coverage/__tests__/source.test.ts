@@ -107,6 +107,33 @@ describe("scanSource", () => {
   });
 });
 
+describe("template-literal (factory) tool names", () => {
+  // Factory helpers register tools with backtick names like `list_${x}s`.
+  // The scanner must still capture the call site and its @api annotations.
+  it("captures a tool registered with a template-literal name", () => {
+    const d = mkdtempSync(join(tmpdir(), "src-factory-"));
+    const mod = join(d, "content", "tools");
+    mkdirSync(mod, { recursive: true });
+    writeFileSync(
+      join(mod, "type-artifacts.ts"),
+      "// @api GET /MessageTypeDesigntimeArtifacts\n" +
+        "// @api GET /DataTypeDesigntimeArtifacts\n" +
+        "server.registerTool(\n  `list_${toolPrefix}s`,\n  {},\n  async () => {}\n);\n"
+    );
+    try {
+      const tools = scanSource(d);
+      const tool = tools.find((t) => t.tool === "list_${toolPrefix}s");
+      expect(tool).toBeDefined();
+      expect(tool!.annotations).toEqual([
+        { method: "GET", path: "/MessageTypeDesigntimeArtifacts" },
+        { method: "GET", path: "/DataTypeDesigntimeArtifacts" },
+      ]);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("annotationsAbove blank line handling", () => {
   let dir: string;
   beforeAll(() => {
