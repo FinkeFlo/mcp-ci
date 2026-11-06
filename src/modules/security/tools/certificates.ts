@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type { ChainCertificate } from "../types.js";
 import {
   buildCertificateValuePath,
@@ -68,24 +69,13 @@ export function registerCertificateTools(
           ),
       }),
     },
-    async ({ hexalias, keystoreName, rootCA }) => {
-      try {
-        const ks = keystoreName ?? "system";
-        const rc = rootCA ?? false;
-        const path = `${buildExportCertificatePath(hexalias)}?keystoreName=${ks}&rootCA=${rc}`;
-        const content = await context.odataClient.getValue(path);
-        return {
-          content: [{ type: "text" as const, text: content }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ hexalias, keystoreName, rootCA }) => {
+      const ks = keystoreName ?? "system";
+      const rc = rootCA ?? false;
+      const path = `${buildExportCertificatePath(hexalias)}?keystoreName=${ks}&rootCA=${rc}`;
+      const content = await context.odataClient.getValue(path);
+      return content;
+    })
   );
 
   // 2. import_certificate
@@ -116,51 +106,33 @@ export function registerCertificateTools(
           .describe("Set to true to actually import the certificate"),
       }),
     },
-    async ({ hexalias, certificate, fingerprintVerified, update, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Certificate to import:");
-          lines.push("");
-          lines.push(`Hexalias: ${hexalias}`);
-          lines.push(
-            `Certificate: (${certificate.length} chars, base64-encoded)`
-          );
-          lines.push(
-            `FingerprintVerified: ${fingerprintVerified ?? "n/a"}`
-          );
-          lines.push(`Update: ${update ?? "n/a"}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = { certificate };
-        if (fingerprintVerified !== undefined)
-          body.fingerprintVerified = fingerprintVerified;
-        if (update !== undefined) body.update = update;
-        await context.odataClient.put(
-          buildCertificateValuePath(hexalias),
-          body
+    textTool(async ({ hexalias, certificate, fingerprintVerified, update, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Certificate to import:");
+        lines.push("");
+        lines.push(`Hexalias: ${hexalias}`);
+        lines.push(
+          `Certificate: (${certificate.length} chars, base64-encoded)`
         );
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Certificate '${hexalias}' imported successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+        lines.push(
+          `FingerprintVerified: ${fingerprintVerified ?? "n/a"}`
+        );
+        lines.push(`Update: ${update ?? "n/a"}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = { certificate };
+      if (fingerprintVerified !== undefined)
+        body.fingerprintVerified = fingerprintVerified;
+      if (update !== undefined) body.update = update;
+      await context.odataClient.put(
+        buildCertificateValuePath(hexalias),
+        body
+      );
+      return `Certificate '${hexalias}' imported successfully.`;
+    })
   );
 
   // 3. import_certificate_chain
@@ -185,47 +157,29 @@ export function registerCertificateTools(
           .describe("Set to true to actually import the certificate chain"),
       }),
     },
-    async ({ hexalias, chain, fingerprintVerified, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Certificate chain to import:");
-          lines.push("");
-          lines.push(`Hexalias: ${hexalias}`);
-          lines.push(`Chain: (${chain.length} chars, base64-encoded)`);
-          lines.push(
-            `FingerprintVerified: ${fingerprintVerified ?? "n/a"}`
-          );
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = { chain };
-        if (fingerprintVerified !== undefined)
-          body.fingerprintVerified = fingerprintVerified;
-        await context.odataClient.put(
-          buildCertificateChainValuePath(hexalias),
-          body
+    textTool(async ({ hexalias, chain, fingerprintVerified, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Certificate chain to import:");
+        lines.push("");
+        lines.push(`Hexalias: ${hexalias}`);
+        lines.push(`Chain: (${chain.length} chars, base64-encoded)`);
+        lines.push(
+          `FingerprintVerified: ${fingerprintVerified ?? "n/a"}`
         );
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Certificate chain '${hexalias}' imported successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = { chain };
+      if (fingerprintVerified !== undefined)
+        body.fingerprintVerified = fingerprintVerified;
+      await context.odataClient.put(
+        buildCertificateChainValuePath(hexalias),
+        body
+      );
+      return `Certificate chain '${hexalias}' imported successfully.`;
+    })
   );
 
   // --- Group 2: Key Pair Operations ---
@@ -279,7 +233,7 @@ export function registerCertificateTools(
           .describe("Set to true to actually generate the key pair"),
       }),
     },
-    async ({
+    textTool(async ({
       hexalias,
       alias,
       keyType,
@@ -296,67 +250,49 @@ export function registerCertificateTools(
       validNotAfter,
       confirm,
     }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Key pair to generate:");
-          lines.push("");
-          lines.push(`Alias: ${alias}`);
-          lines.push(`Hexalias: ${hexalias ?? "n/a"}`);
-          lines.push(`KeyType: ${keyType ?? "n/a"}`);
-          lines.push(`KeySize: ${keySize ?? "n/a"}`);
-          lines.push(`SignatureAlgorithm: ${signatureAlgorithm ?? "n/a"}`);
-          lines.push(`CommonName: ${commonName}`);
-          lines.push(`Country: ${country}`);
-          lines.push(`OrganizationUnit: ${organizationUnit ?? "n/a"}`);
-          lines.push(`Organization: ${organization ?? "n/a"}`);
-          lines.push(`Locality: ${locality ?? "n/a"}`);
-          lines.push(`State: ${state ?? "n/a"}`);
-          lines.push(`Email: ${email ?? "n/a"}`);
-          lines.push(`ValidNotBefore: ${validNotBefore ?? "n/a"}`);
-          lines.push(`ValidNotAfter: ${validNotAfter ?? "n/a"}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {
-          Alias: alias,
-          CommonName: commonName,
-          Country: country,
-        };
-        if (hexalias !== undefined) body.Hexalias = hexalias;
-        if (keyType !== undefined) body.KeyType = keyType;
-        if (keySize !== undefined) body.KeySize = keySize;
-        if (signatureAlgorithm !== undefined)
-          body.SignatureAlgorithm = signatureAlgorithm;
-        if (organizationUnit !== undefined)
-          body.OrganizationUnit = organizationUnit;
-        if (organization !== undefined) body.Organization = organization;
-        if (locality !== undefined) body.Locality = locality;
-        if (state !== undefined) body.State = state;
-        if (email !== undefined) body.Email = email;
-        if (validNotBefore !== undefined) body.ValidNotBefore = validNotBefore;
-        if (validNotAfter !== undefined) body.ValidNotAfter = validNotAfter;
-        await context.odataClient.post(buildKeyPairGenerationPath(), body);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Key pair '${alias}' generated successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Key pair to generate:");
+        lines.push("");
+        lines.push(`Alias: ${alias}`);
+        lines.push(`Hexalias: ${hexalias ?? "n/a"}`);
+        lines.push(`KeyType: ${keyType ?? "n/a"}`);
+        lines.push(`KeySize: ${keySize ?? "n/a"}`);
+        lines.push(`SignatureAlgorithm: ${signatureAlgorithm ?? "n/a"}`);
+        lines.push(`CommonName: ${commonName}`);
+        lines.push(`Country: ${country}`);
+        lines.push(`OrganizationUnit: ${organizationUnit ?? "n/a"}`);
+        lines.push(`Organization: ${organization ?? "n/a"}`);
+        lines.push(`Locality: ${locality ?? "n/a"}`);
+        lines.push(`State: ${state ?? "n/a"}`);
+        lines.push(`Email: ${email ?? "n/a"}`);
+        lines.push(`ValidNotBefore: ${validNotBefore ?? "n/a"}`);
+        lines.push(`ValidNotAfter: ${validNotAfter ?? "n/a"}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {
+        Alias: alias,
+        CommonName: commonName,
+        Country: country,
+      };
+      if (hexalias !== undefined) body.Hexalias = hexalias;
+      if (keyType !== undefined) body.KeyType = keyType;
+      if (keySize !== undefined) body.KeySize = keySize;
+      if (signatureAlgorithm !== undefined)
+        body.SignatureAlgorithm = signatureAlgorithm;
+      if (organizationUnit !== undefined)
+        body.OrganizationUnit = organizationUnit;
+      if (organization !== undefined) body.Organization = organization;
+      if (locality !== undefined) body.Locality = locality;
+      if (state !== undefined) body.State = state;
+      if (email !== undefined) body.Email = email;
+      if (validNotBefore !== undefined) body.ValidNotBefore = validNotBefore;
+      if (validNotAfter !== undefined) body.ValidNotAfter = validNotAfter;
+      await context.odataClient.post(buildKeyPairGenerationPath(), body);
+      return `Key pair '${alias}' generated successfully.`;
+    })
   );
 
   // 5. generate_rsa_key_pair
@@ -403,7 +339,7 @@ export function registerCertificateTools(
           .describe("Set to true to actually generate the key pair"),
       }),
     },
-    async ({
+    textTool(async ({
       hexalias,
       alias,
       rsaFile,
@@ -419,67 +355,49 @@ export function registerCertificateTools(
       validNotAfter,
       confirm,
     }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("RSA key pair to generate:");
-          lines.push("");
-          lines.push(`Alias: ${alias}`);
-          lines.push(`Hexalias: ${hexalias ?? "n/a"}`);
-          lines.push(
-            `RSAFile: (${rsaFile.length} chars, base64-encoded)`
-          );
-          lines.push(`SignatureAlgorithm: ${signatureAlgorithm ?? "n/a"}`);
-          lines.push(`CommonName: ${commonName}`);
-          lines.push(`Country: ${country}`);
-          lines.push(`OrganizationUnit: ${organizationUnit ?? "n/a"}`);
-          lines.push(`Organization: ${organization ?? "n/a"}`);
-          lines.push(`Locality: ${locality ?? "n/a"}`);
-          lines.push(`State: ${state ?? "n/a"}`);
-          lines.push(`Email: ${email ?? "n/a"}`);
-          lines.push(`ValidNotBefore: ${validNotBefore ?? "n/a"}`);
-          lines.push(`ValidNotAfter: ${validNotAfter ?? "n/a"}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {
-          Alias: alias,
-          RSAFile: rsaFile,
-          CommonName: commonName,
-          Country: country,
-        };
-        if (hexalias !== undefined) body.Hexalias = hexalias;
-        if (signatureAlgorithm !== undefined)
-          body.SignatureAlgorithm = signatureAlgorithm;
-        if (organizationUnit !== undefined)
-          body.OrganizationUnit = organizationUnit;
-        if (organization !== undefined) body.Organization = organization;
-        if (locality !== undefined) body.Locality = locality;
-        if (state !== undefined) body.State = state;
-        if (email !== undefined) body.Email = email;
-        if (validNotBefore !== undefined) body.ValidNotBefore = validNotBefore;
-        if (validNotAfter !== undefined) body.ValidNotAfter = validNotAfter;
-        await context.odataClient.post(buildRsaKeyGenerationPath(), body);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `RSA key pair '${alias}' generated successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("RSA key pair to generate:");
+        lines.push("");
+        lines.push(`Alias: ${alias}`);
+        lines.push(`Hexalias: ${hexalias ?? "n/a"}`);
+        lines.push(
+          `RSAFile: (${rsaFile.length} chars, base64-encoded)`
+        );
+        lines.push(`SignatureAlgorithm: ${signatureAlgorithm ?? "n/a"}`);
+        lines.push(`CommonName: ${commonName}`);
+        lines.push(`Country: ${country}`);
+        lines.push(`OrganizationUnit: ${organizationUnit ?? "n/a"}`);
+        lines.push(`Organization: ${organization ?? "n/a"}`);
+        lines.push(`Locality: ${locality ?? "n/a"}`);
+        lines.push(`State: ${state ?? "n/a"}`);
+        lines.push(`Email: ${email ?? "n/a"}`);
+        lines.push(`ValidNotBefore: ${validNotBefore ?? "n/a"}`);
+        lines.push(`ValidNotAfter: ${validNotAfter ?? "n/a"}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {
+        Alias: alias,
+        RSAFile: rsaFile,
+        CommonName: commonName,
+        Country: country,
+      };
+      if (hexalias !== undefined) body.Hexalias = hexalias;
+      if (signatureAlgorithm !== undefined)
+        body.SignatureAlgorithm = signatureAlgorithm;
+      if (organizationUnit !== undefined)
+        body.OrganizationUnit = organizationUnit;
+      if (organization !== undefined) body.Organization = organization;
+      if (locality !== undefined) body.Locality = locality;
+      if (state !== undefined) body.State = state;
+      if (email !== undefined) body.Email = email;
+      if (validNotBefore !== undefined) body.ValidNotBefore = validNotBefore;
+      if (validNotAfter !== undefined) body.ValidNotAfter = validNotAfter;
+      await context.odataClient.post(buildRsaKeyGenerationPath(), body);
+      return `RSA key pair '${alias}' generated successfully.`;
+    })
   );
 
   // 6. generate_ssh_key_pair
@@ -524,7 +442,7 @@ export function registerCertificateTools(
           .describe("Set to true to actually generate the SSH key pair"),
       }),
     },
-    async ({
+    textTool(async ({
       alias,
       sshFile,
       password,
@@ -540,67 +458,49 @@ export function registerCertificateTools(
       update,
       confirm,
     }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("SSH key pair to generate:");
-          lines.push("");
-          lines.push(`Alias: ${alias}`);
-          lines.push(
-            `SSHFile: (${sshFile.length} chars, base64-encoded)`
-          );
-          lines.push(`Password: ${password !== undefined ? "(provided)" : "n/a"}`);
-          lines.push(`CommonName: ${commonName}`);
-          lines.push(`Country: ${country}`);
-          lines.push(`OrganizationUnit: ${organizationUnit ?? "n/a"}`);
-          lines.push(`Organization: ${organization ?? "n/a"}`);
-          lines.push(`Locality: ${locality ?? "n/a"}`);
-          lines.push(`State: ${state ?? "n/a"}`);
-          lines.push(`Email: ${email ?? "n/a"}`);
-          lines.push(`ValidNotBefore: ${validNotBefore ?? "n/a"}`);
-          lines.push(`ValidNotAfter: ${validNotAfter ?? "n/a"}`);
-          lines.push(`Update: ${update ?? "n/a"}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {
-          Alias: alias,
-          SSHFile: sshFile,
-          CommonName: commonName,
-          Country: country,
-        };
-        if (password !== undefined) body.Password = password;
-        if (organizationUnit !== undefined)
-          body.OrganizationUnit = organizationUnit;
-        if (organization !== undefined) body.Organization = organization;
-        if (locality !== undefined) body.Locality = locality;
-        if (state !== undefined) body.State = state;
-        if (email !== undefined) body.Email = email;
-        if (validNotBefore !== undefined) body.ValidNotBefore = validNotBefore;
-        if (validNotAfter !== undefined) body.ValidNotAfter = validNotAfter;
-        let path = buildSshKeyGenerationPath();
-        if (update !== undefined) path += `?update=${update}`;
-        await context.odataClient.post(path, body);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `SSH key pair '${alias}' generated successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("SSH key pair to generate:");
+        lines.push("");
+        lines.push(`Alias: ${alias}`);
+        lines.push(
+          `SSHFile: (${sshFile.length} chars, base64-encoded)`
+        );
+        lines.push(`Password: ${password !== undefined ? "(provided)" : "n/a"}`);
+        lines.push(`CommonName: ${commonName}`);
+        lines.push(`Country: ${country}`);
+        lines.push(`OrganizationUnit: ${organizationUnit ?? "n/a"}`);
+        lines.push(`Organization: ${organization ?? "n/a"}`);
+        lines.push(`Locality: ${locality ?? "n/a"}`);
+        lines.push(`State: ${state ?? "n/a"}`);
+        lines.push(`Email: ${email ?? "n/a"}`);
+        lines.push(`ValidNotBefore: ${validNotBefore ?? "n/a"}`);
+        lines.push(`ValidNotAfter: ${validNotAfter ?? "n/a"}`);
+        lines.push(`Update: ${update ?? "n/a"}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {
+        Alias: alias,
+        SSHFile: sshFile,
+        CommonName: commonName,
+        Country: country,
+      };
+      if (password !== undefined) body.Password = password;
+      if (organizationUnit !== undefined)
+        body.OrganizationUnit = organizationUnit;
+      if (organization !== undefined) body.Organization = organization;
+      if (locality !== undefined) body.Locality = locality;
+      if (state !== undefined) body.State = state;
+      if (email !== undefined) body.Email = email;
+      if (validNotBefore !== undefined) body.ValidNotBefore = validNotBefore;
+      if (validNotAfter !== undefined) body.ValidNotAfter = validNotAfter;
+      let path = buildSshKeyGenerationPath();
+      if (update !== undefined) path += `?update=${update}`;
+      await context.odataClient.post(path, body);
+      return `SSH key pair '${alias}' generated successfully.`;
+    })
   );
 
   // 7. import_key_pair
@@ -634,7 +534,7 @@ export function registerCertificateTools(
           .describe("Set to true to actually import the key pair"),
       }),
     },
-    async ({
+    textTool(async ({
       hexalias,
       alias,
       resource,
@@ -643,57 +543,39 @@ export function registerCertificateTools(
       update,
       confirm,
     }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Key pair to import:");
-          lines.push("");
-          lines.push(`Alias: ${alias}`);
-          lines.push(`Hexalias: ${hexalias ?? "n/a"}`);
-          lines.push(
-            `Resource: (${resource.length} chars, base64-encoded PKCS#12)`
-          );
-          lines.push(`Password: (provided)`);
-          lines.push(
-            `FingerprintVerified: ${fingerprintVerified ?? "n/a"}`
-          );
-          lines.push(`Update: ${update ?? "n/a"}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {
-          Alias: alias,
-          Resource: resource,
-          Password: password,
-        };
-        if (hexalias !== undefined) body.Hexalias = hexalias;
-        const queryParams: string[] = [];
-        if (fingerprintVerified !== undefined)
-          queryParams.push(`fingerprintVerified=${fingerprintVerified}`);
-        if (update !== undefined) queryParams.push(`update=${update}`);
-        let path = buildKeyPairResourcesPath();
-        if (queryParams.length > 0) path += `?${queryParams.join("&")}`;
-        await context.odataClient.post(path, body);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Key pair '${alias}' imported successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Key pair to import:");
+        lines.push("");
+        lines.push(`Alias: ${alias}`);
+        lines.push(`Hexalias: ${hexalias ?? "n/a"}`);
+        lines.push(
+          `Resource: (${resource.length} chars, base64-encoded PKCS#12)`
+        );
+        lines.push(`Password: (provided)`);
+        lines.push(
+          `FingerprintVerified: ${fingerprintVerified ?? "n/a"}`
+        );
+        lines.push(`Update: ${update ?? "n/a"}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {
+        Alias: alias,
+        Resource: resource,
+        Password: password,
+      };
+      if (hexalias !== undefined) body.Hexalias = hexalias;
+      const queryParams: string[] = [];
+      if (fingerprintVerified !== undefined)
+        queryParams.push(`fingerprintVerified=${fingerprintVerified}`);
+      if (update !== undefined) queryParams.push(`update=${update}`);
+      let path = buildKeyPairResourcesPath();
+      if (queryParams.length > 0) path += `?${queryParams.join("&")}`;
+      await context.odataClient.post(path, body);
+      return `Key pair '${alias}' imported successfully.`;
+    })
   );
 
   // --- Group 3: Certificate Chain & CSR ---
@@ -715,35 +597,17 @@ export function registerCertificateTools(
           .describe("Name of the keystore (default: 'system')"),
       }),
     },
-    async ({ hexalias, keystoreName }) => {
-      try {
-        const ks = keystoreName ?? "system";
-        const path = `${buildChainCertificatesPath(hexalias)}?keystoreName=${ks}`;
-        const certs =
-          await context.odataClient.getCollection<ChainCertificate>(path);
-        if (certs.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No chain certificates found.",
-              },
-            ],
-          };
-        }
-        const text = certs.map(formatChainCertificate).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ hexalias, keystoreName }) => {
+      const ks = keystoreName ?? "system";
+      const path = `${buildChainCertificatesPath(hexalias)}?keystoreName=${ks}`;
+      const certs =
+        await context.odataClient.getCollection<ChainCertificate>(path);
+      if (certs.length === 0) {
+        return "No chain certificates found.";
       }
-    }
+      const text = certs.map(formatChainCertificate).join("\n\n");
+      return text;
+    })
   );
 
   // 9. get_signing_request
@@ -759,23 +623,12 @@ export function registerCertificateTools(
           .describe("Hex-encoded alias of the keystore entry"),
       }),
     },
-    async ({ hexalias }) => {
-      try {
-        const content = await context.odataClient.getValue(
-          buildSigningRequestPath(hexalias)
-        );
-        return {
-          content: [{ type: "text" as const, text: content }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ hexalias }) => {
+      const content = await context.odataClient.getValue(
+        buildSigningRequestPath(hexalias)
+      );
+      return content;
+    })
   );
 
   // 10. download_chain_resource
@@ -791,22 +644,11 @@ export function registerCertificateTools(
           .describe("Hex-encoded alias of the keystore entry"),
       }),
     },
-    async ({ hexalias }) => {
-      try {
-        const content = await context.odataClient.getValue(
-          buildChainResourceValuePath(hexalias)
-        );
-        return {
-          content: [{ type: "text" as const, text: content }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ hexalias }) => {
+      const content = await context.odataClient.getValue(
+        buildChainResourceValuePath(hexalias)
+      );
+      return content;
+    })
   );
 }

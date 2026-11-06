@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type {
   CertificateUserMapping,
   AccessPolicy,
@@ -102,36 +103,18 @@ export function registerAccessPolicyTools(
           .describe("OData $select expression"),
       }),
     },
-    async ({ filter, orderby, select }) => {
-      try {
-        const mappings =
-          await context.odataClient.getCollection<CertificateUserMapping>(
-            buildCertUserMappingsPath(),
-            { $filter: filter, $orderby: orderby, $select: select }
-          );
-        if (mappings.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No certificate-to-user mappings found.",
-              },
-            ],
-          };
-        }
-        const text = mappings.map(formatCertUserMappingSummary).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ filter, orderby, select }) => {
+      const mappings =
+        await context.odataClient.getCollection<CertificateUserMapping>(
+          buildCertUserMappingsPath(),
+          { $filter: filter, $orderby: orderby, $select: select }
+        );
+      if (mappings.length === 0) {
+        return "No certificate-to-user mappings found.";
       }
-    }
+      const text = mappings.map(formatCertUserMappingSummary).join("\n\n");
+      return text;
+    })
   );
 
   // @api GET /CertificateUserMappings('{Id}')
@@ -144,25 +127,14 @@ export function registerAccessPolicyTools(
         id: z.string().describe("The certificate-to-user mapping ID"),
       }),
     },
-    async ({ id }) => {
-      try {
-        const mapping =
-          await context.odataClient.getEntity<CertificateUserMapping>(
-            buildCertUserMappingPath(id)
-          );
-        const text = formatCertUserMappingDetail(mapping);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id }) => {
+      const mapping =
+        await context.odataClient.getEntity<CertificateUserMapping>(
+          buildCertUserMappingPath(id)
+        );
+      const text = formatCertUserMappingDetail(mapping);
+      return text;
+    })
   );
 
   // @api POST /CertificateUserMappings
@@ -184,45 +156,27 @@ export function registerAccessPolicyTools(
           ),
       }),
     },
-    async ({ user, certificate, confirm }) => {
-      try {
-        if (!confirm) {
-          const certPreview =
-            certificate.length > 50
-              ? certificate.slice(0, 50) + "..."
-              : certificate;
-          const lines: string[] = [];
-          lines.push("Certificate-to-user mapping to create:");
-          lines.push("");
-          lines.push(`User: ${user}`);
-          lines.push(`Certificate: ${certPreview}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        await context.odataClient.post(buildCertUserMappingsPath(), {
-          User: user,
-          Certificate: certificate,
-        });
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Certificate-to-user mapping for user '${user}' created successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ user, certificate, confirm }) => {
+      if (!confirm) {
+        const certPreview =
+          certificate.length > 50
+            ? certificate.slice(0, 50) + "..."
+            : certificate;
+        const lines: string[] = [];
+        lines.push("Certificate-to-user mapping to create:");
+        lines.push("");
+        lines.push(`User: ${user}`);
+        lines.push(`Certificate: ${certPreview}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      await context.odataClient.post(buildCertUserMappingsPath(), {
+        User: user,
+        Certificate: certificate,
+      });
+      return `Certificate-to-user mapping for user '${user}' created successfully.`;
+    })
   );
 
   // @api GET /CertificateUserMappings('{Id}')
@@ -244,41 +198,18 @@ export function registerAccessPolicyTools(
           ),
       }),
     },
-    async ({ id, confirm }) => {
-      try {
-        if (!confirm) {
-          const mapping =
-            await context.odataClient.getEntity<CertificateUserMapping>(
-              buildCertUserMappingPath(id)
-            );
-          const preview = formatCertUserMappingDetail(mapping);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Certificate-to-user mapping to delete:\n\n${preview}\n\nSet confirm to true to proceed.`,
-              },
-            ],
-          };
-        }
-        await context.odataClient.delete(buildCertUserMappingPath(id));
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Certificate-to-user mapping '${id}' deleted successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, confirm }) => {
+      if (!confirm) {
+        const mapping =
+          await context.odataClient.getEntity<CertificateUserMapping>(
+            buildCertUserMappingPath(id)
+          );
+        const preview = formatCertUserMappingDetail(mapping);
+        return `Certificate-to-user mapping to delete:\n\n${preview}\n\nSet confirm to true to proceed.`;
       }
-    }
+      await context.odataClient.delete(buildCertUserMappingPath(id));
+      return `Certificate-to-user mapping '${id}' deleted successfully.`;
+    })
   );
 
   // ─── Access Policies ───
@@ -324,41 +255,26 @@ export function registerAccessPolicyTools(
           ),
       }),
     },
-    async ({ filter, orderby, select, expand, top, skip, inlinecount }) => {
-      try {
-        const policies =
-          await context.odataClient.getCollection<AccessPolicy>(
-            buildAccessPoliciesPath(),
-            {
-              $filter: filter,
-              $orderby: orderby,
-              $select: select,
-              $expand: expand,
-              $top: top,
-              $skip: skip,
-              $inlinecount: inlinecount,
-            }
-          );
-        if (policies.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No access policies found." },
-            ],
-          };
-        }
-        const text = policies.map(formatAccessPolicySummary).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ filter, orderby, select, expand, top, skip, inlinecount }) => {
+      const policies =
+        await context.odataClient.getCollection<AccessPolicy>(
+          buildAccessPoliciesPath(),
+          {
+            $filter: filter,
+            $orderby: orderby,
+            $select: select,
+            $expand: expand,
+            $top: top,
+            $skip: skip,
+            $inlinecount: inlinecount,
+          }
+        );
+      if (policies.length === 0) {
+        return "No access policies found.";
       }
-    }
+      const text = policies.map(formatAccessPolicySummary).join("\n\n");
+      return text;
+    })
   );
 
   // @api POST /AccessPolicies
@@ -397,50 +313,32 @@ export function registerAccessPolicyTools(
           .describe("Set to true to actually create the access policy"),
       }),
     },
-    async ({ roleName, description, artifactReferences, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Access policy to create:");
-          lines.push("");
-          lines.push(`RoleName: ${roleName}`);
-          lines.push(`Description: ${description ?? "n/a"}`);
-          if (artifactReferences && artifactReferences.length > 0) {
-            lines.push(`ArtifactReferences: ${artifactReferences.length} reference(s)`);
-            for (const ref of artifactReferences) {
-              lines.push(`  - Name: ${ref.Name}, Type: ${ref.Type}, ConditionValue: ${ref.ConditionValue}`);
-            }
-          } else {
-            lines.push("ArtifactReferences: none");
+    textTool(async ({ roleName, description, artifactReferences, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Access policy to create:");
+        lines.push("");
+        lines.push(`RoleName: ${roleName}`);
+        lines.push(`Description: ${description ?? "n/a"}`);
+        if (artifactReferences && artifactReferences.length > 0) {
+          lines.push(`ArtifactReferences: ${artifactReferences.length} reference(s)`);
+          for (const ref of artifactReferences) {
+            lines.push(`  - Name: ${ref.Name}, Type: ${ref.Type}, ConditionValue: ${ref.ConditionValue}`);
           }
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
+        } else {
+          lines.push("ArtifactReferences: none");
         }
-        const body: Record<string, unknown> = { RoleName: roleName };
-        if (description !== undefined) body.Description = description;
-        if (artifactReferences !== undefined)
-          body.ArtifactReferences = artifactReferences;
-        await context.odataClient.post(buildAccessPoliciesPath(), body);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Access policy '${roleName}' created successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = { RoleName: roleName };
+      if (description !== undefined) body.Description = description;
+      if (artifactReferences !== undefined)
+        body.ArtifactReferences = artifactReferences;
+      await context.odataClient.post(buildAccessPoliciesPath(), body);
+      return `Access policy '${roleName}' created successfully.`;
+    })
   );
 
   // @api GET /AccessPolicies({Id})
@@ -466,52 +364,34 @@ export function registerAccessPolicyTools(
           .describe("Set to true to actually update the access policy"),
       }),
     },
-    async ({ id, roleName, description, confirm }) => {
-      try {
-        if (!confirm) {
-          const policy =
-            await context.odataClient.getEntity<AccessPolicy>(
-              buildAccessPolicyPath(id)
-            );
-          const lines: string[] = [];
-          lines.push("Access policy to update:");
-          lines.push("");
-          lines.push(formatAccessPolicySummary(policy));
-          lines.push("");
-          lines.push("Proposed changes:");
-          if (roleName !== undefined)
-            lines.push(`  RoleName: ${policy.RoleName} -> ${roleName}`);
-          if (description !== undefined)
-            lines.push(
-              `  Description: ${policy.Description} -> ${description}`
-            );
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {};
-        if (roleName !== undefined) body.RoleName = roleName;
-        if (description !== undefined) body.Description = description;
-        await context.odataClient.put(buildAccessPolicyPath(id), body);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Access policy '${id}' updated successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, roleName, description, confirm }) => {
+      if (!confirm) {
+        const policy =
+          await context.odataClient.getEntity<AccessPolicy>(
+            buildAccessPolicyPath(id)
+          );
+        const lines: string[] = [];
+        lines.push("Access policy to update:");
+        lines.push("");
+        lines.push(formatAccessPolicySummary(policy));
+        lines.push("");
+        lines.push("Proposed changes:");
+        if (roleName !== undefined)
+          lines.push(`  RoleName: ${policy.RoleName} -> ${roleName}`);
+        if (description !== undefined)
+          lines.push(
+            `  Description: ${policy.Description} -> ${description}`
+          );
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {};
+      if (roleName !== undefined) body.RoleName = roleName;
+      if (description !== undefined) body.Description = description;
+      await context.odataClient.put(buildAccessPolicyPath(id), body);
+      return `Access policy '${id}' updated successfully.`;
+    })
   );
 
   // @api GET /AccessPolicies({Id})
@@ -529,41 +409,18 @@ export function registerAccessPolicyTools(
           .describe("Set to true to actually delete the access policy"),
       }),
     },
-    async ({ id, confirm }) => {
-      try {
-        if (!confirm) {
-          const policy =
-            await context.odataClient.getEntity<AccessPolicy>(
-              buildAccessPolicyPath(id)
-            );
-          const preview = formatAccessPolicySummary(policy);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Access policy to delete:\n\n${preview}\n\nSet confirm to true to proceed.`,
-              },
-            ],
-          };
-        }
-        await context.odataClient.delete(buildAccessPolicyPath(id));
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Access policy '${id}' deleted successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, confirm }) => {
+      if (!confirm) {
+        const policy =
+          await context.odataClient.getEntity<AccessPolicy>(
+            buildAccessPolicyPath(id)
+          );
+        const preview = formatAccessPolicySummary(policy);
+        return `Access policy to delete:\n\n${preview}\n\nSet confirm to true to proceed.`;
       }
-    }
+      await context.odataClient.delete(buildAccessPolicyPath(id));
+      return `Access policy '${id}' deleted successfully.`;
+    })
   );
 
   // ─── Artifact References ───
@@ -603,45 +460,27 @@ export function registerAccessPolicyTools(
           ),
       }),
     },
-    async ({ filter, orderby, select, top, skip, inlinecount }) => {
-      try {
-        const references =
-          await context.odataClient.getCollection<ArtifactReference>(
-            buildArtifactReferencesPath(),
-            {
-              $filter: filter,
-              $orderby: orderby,
-              $select: select,
-              $top: top,
-              $skip: skip,
-              $inlinecount: inlinecount,
-            }
-          );
-        if (references.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No artifact references found.",
-              },
-            ],
-          };
-        }
-        const text = references
-          .map(formatArtifactReferenceSummary)
-          .join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ filter, orderby, select, top, skip, inlinecount }) => {
+      const references =
+        await context.odataClient.getCollection<ArtifactReference>(
+          buildArtifactReferencesPath(),
+          {
+            $filter: filter,
+            $orderby: orderby,
+            $select: select,
+            $top: top,
+            $skip: skip,
+            $inlinecount: inlinecount,
+          }
+        );
+      if (references.length === 0) {
+        return "No artifact references found.";
       }
-    }
+      const text = references
+        .map(formatArtifactReferenceSummary)
+        .join("\n\n");
+      return text;
+    })
   );
 
   // @api POST /ArtifactReferences
@@ -668,7 +507,7 @@ export function registerAccessPolicyTools(
           ),
       }),
     },
-    async ({
+    textTool(async ({
       name,
       description,
       type,
@@ -677,49 +516,31 @@ export function registerAccessPolicyTools(
       conditionType,
       confirm,
     }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Artifact reference to create:");
-          lines.push("");
-          lines.push(`Name: ${name}`);
-          lines.push(`Description: ${description ?? "n/a"}`);
-          lines.push(`Type: ${type}`);
-          lines.push(`ConditionAttribute: ${conditionAttribute}`);
-          lines.push(`ConditionValue: ${conditionValue}`);
-          lines.push(`ConditionType: ${conditionType}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {
-          Name: name,
-          Type: type,
-          ConditionAttribute: conditionAttribute,
-          ConditionValue: conditionValue,
-          ConditionType: conditionType,
-        };
-        if (description !== undefined) body.Description = description;
-        await context.odataClient.post(buildArtifactReferencesPath(), body);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Artifact reference '${name}' created successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Artifact reference to create:");
+        lines.push("");
+        lines.push(`Name: ${name}`);
+        lines.push(`Description: ${description ?? "n/a"}`);
+        lines.push(`Type: ${type}`);
+        lines.push(`ConditionAttribute: ${conditionAttribute}`);
+        lines.push(`ConditionValue: ${conditionValue}`);
+        lines.push(`ConditionType: ${conditionType}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {
+        Name: name,
+        Type: type,
+        ConditionAttribute: conditionAttribute,
+        ConditionValue: conditionValue,
+        ConditionType: conditionType,
+      };
+      if (description !== undefined) body.Description = description;
+      await context.odataClient.post(buildArtifactReferencesPath(), body);
+      return `Artifact reference '${name}' created successfully.`;
+    })
   );
 
   // @api GET /ArtifactReferences({Id})
@@ -741,40 +562,17 @@ export function registerAccessPolicyTools(
           ),
       }),
     },
-    async ({ id, confirm }) => {
-      try {
-        if (!confirm) {
-          const reference =
-            await context.odataClient.getEntity<ArtifactReference>(
-              buildArtifactReferencePath(id)
-            );
-          const preview = formatArtifactReferenceSummary(reference);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Artifact reference to delete:\n\n${preview}\n\nSet confirm to true to proceed.`,
-              },
-            ],
-          };
-        }
-        await context.odataClient.delete(buildArtifactReferencePath(id));
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Artifact reference '${id}' deleted successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, confirm }) => {
+      if (!confirm) {
+        const reference =
+          await context.odataClient.getEntity<ArtifactReference>(
+            buildArtifactReferencePath(id)
+          );
+        const preview = formatArtifactReferenceSummary(reference);
+        return `Artifact reference to delete:\n\n${preview}\n\nSet confirm to true to proceed.`;
       }
-    }
+      await context.odataClient.delete(buildArtifactReferencePath(id));
+      return `Artifact reference '${id}' deleted successfully.`;
+    })
   );
 }
