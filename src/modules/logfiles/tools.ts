@@ -1,6 +1,7 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { Module, ModuleContext } from "../../core/types.js";
+import { textTool } from "../../core/tool.js";
 import type { LogFileArchive, LogFile } from "./types.js";
 import {
   buildLogFileArchivesPath,
@@ -58,32 +59,17 @@ export const logfilesModule: Module = {
           "List all available log file archives on the active SAP Cloud Integration tenant.",
         inputSchema: z.object({}),
       },
-      async () => {
-        try {
-          const archives =
-            await context.odataClient.getCollection<LogFileArchive>(
-              buildLogFileArchivesPath()
-            );
-          if (archives.length === 0) {
-            return {
-              content: [
-                { type: "text" as const, text: "No log file archives found." },
-              ],
-            };
-          }
-          const text = archives.map(formatArchive).join("\n\n");
-          return {
-            content: [{ type: "text" as const, text }],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [
-              { type: "text" as const, text: (error as Error).message },
-            ],
-          };
+      textTool(async () => {
+        const archives =
+          await context.odataClient.getCollection<LogFileArchive>(
+            buildLogFileArchivesPath()
+          );
+        if (archives.length === 0) {
+          return "No log file archives found.";
         }
-      }
+        const text = archives.map(formatArchive).join("\n\n");
+        return text;
+      })
     );
 
     // @api GET /LogFileArchives(Scope='{Scope}',LogFileType='{LogFileType}',NodeScope='worker')
@@ -101,25 +87,14 @@ export const logfilesModule: Module = {
             .describe("The type of log file"),
         }),
       },
-      async ({ scope, logFileType }) => {
-        try {
-          const archive =
-            await context.odataClient.getEntity<LogFileArchive>(
-              buildLogFileArchivePath(scope, logFileType)
-            );
-          const text = formatArchive(archive);
-          return {
-            content: [{ type: "text" as const, text }],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [
-              { type: "text" as const, text: (error as Error).message },
-            ],
-          };
-        }
-      }
+      textTool(async ({ scope, logFileType }) => {
+        const archive =
+          await context.odataClient.getEntity<LogFileArchive>(
+            buildLogFileArchivePath(scope, logFileType)
+          );
+        const text = formatArchive(archive);
+        return text;
+      })
     );
 
     // @api GET /LogFileArchives(Scope='{Scope}',LogFileType='{LogFileType}',NodeScope='worker')/$value
@@ -143,30 +118,14 @@ export const logfilesModule: Module = {
             ),
         }),
       },
-      async ({ scope, logFileType, modifiedAfter }) => {
-        try {
-          let path = buildLogFileArchiveValuePath(scope, logFileType);
-          if (modifiedAfter) {
-            path += `?ModifiedAfter=${modifiedAfter}`;
-          }
-          const content = await context.odataClient.getValue(path);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Log file archive downloaded (${content.length} bytes, ZIP format).`,
-              },
-            ],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [
-              { type: "text" as const, text: (error as Error).message },
-            ],
-          };
+      textTool(async ({ scope, logFileType, modifiedAfter }) => {
+        let path = buildLogFileArchiveValuePath(scope, logFileType);
+        if (modifiedAfter) {
+          path += `?ModifiedAfter=${modifiedAfter}`;
         }
-      }
+        const content = await context.odataClient.getValue(path);
+        return `Log file archive downloaded (${content.length} bytes, ZIP format).`;
+      })
     );
 
     // @api GET /LogFiles
@@ -198,38 +157,23 @@ export const logfilesModule: Module = {
             .describe("Number of results to skip (for pagination)"),
         }),
       },
-      async ({ filter, orderby, select, top, skip }) => {
-        try {
-          const files = await context.odataClient.getCollection<LogFile>(
-            buildLogFilesPath(),
-            {
-              $filter: filter,
-              $orderby: orderby,
-              $select: select,
-              $top: top,
-              $skip: skip,
-            }
-          );
-          if (files.length === 0) {
-            return {
-              content: [
-                { type: "text" as const, text: "No log files found." },
-              ],
-            };
+      textTool(async ({ filter, orderby, select, top, skip }) => {
+        const files = await context.odataClient.getCollection<LogFile>(
+          buildLogFilesPath(),
+          {
+            $filter: filter,
+            $orderby: orderby,
+            $select: select,
+            $top: top,
+            $skip: skip,
           }
-          const text = files.map(formatLogFile).join("\n\n");
-          return {
-            content: [{ type: "text" as const, text }],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [
-              { type: "text" as const, text: (error as Error).message },
-            ],
-          };
+        );
+        if (files.length === 0) {
+          return "No log files found.";
         }
-      }
+        const text = files.map(formatLogFile).join("\n\n");
+        return text;
+      })
     );
 
     // @api GET /LogFiles(Name='{Name}',Application='{Application}')
@@ -243,24 +187,13 @@ export const logfilesModule: Module = {
           application: z.string().describe("The application name"),
         }),
       },
-      async ({ name, application }) => {
-        try {
-          const file = await context.odataClient.getEntity<LogFile>(
-            buildLogFilePath(name, application)
-          );
-          const text = formatLogFile(file);
-          return {
-            content: [{ type: "text" as const, text }],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [
-              { type: "text" as const, text: (error as Error).message },
-            ],
-          };
-        }
-      }
+      textTool(async ({ name, application }) => {
+        const file = await context.odataClient.getEntity<LogFile>(
+          buildLogFilePath(name, application)
+        );
+        const text = formatLogFile(file);
+        return text;
+      })
     );
 
     // @api GET /LogFiles(Name='{Name}',Application='{Application}')/$value
@@ -274,23 +207,12 @@ export const logfilesModule: Module = {
           application: z.string().describe("The application name"),
         }),
       },
-      async ({ name, application }) => {
-        try {
-          const content = await context.odataClient.getValue(
-            buildLogFileValuePath(name, application)
-          );
-          return {
-            content: [{ type: "text" as const, text: content }],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [
-              { type: "text" as const, text: (error as Error).message },
-            ],
-          };
-        }
-      }
+      textTool(async ({ name, application }) => {
+        const content = await context.odataClient.getValue(
+          buildLogFileValuePath(name, application)
+        );
+        return content;
+      })
     );
   },
 };

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/server";
 import { monitoringModule } from "../tools.js";
 import type { ModuleContext } from "../../../core/types.js";
 import type { MessageProcessingLog, MessageProcessingLogAttachment, MessageStoreEntry, ErrorInformation } from "../types.js";
@@ -74,6 +74,202 @@ describe("monitoring tools", () => {
       const result = await handlers.get("list_messages")!({});
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain("OData error");
+    });
+  });
+
+  describe("list_messages CustomStatus", () => {
+    it("displays CustomStatus alongside Status (SOAP soft fault)", async () => {
+      mockODataClient.getCollection.mockResolvedValue([
+        makeMpl({
+          MessageGuid: "guid-soft-fault",
+          IntegrationFlowName: "Flow_SOAP_Receiver",
+          Status: "COMPLETED",
+          CustomStatus: "ERROR",
+          Receiver: "Legacy_SOAP",
+        }),
+      ]);
+      const result = await handlers.get("list_messages")!({});
+      expect(result.content[0].text).toContain("Status: COMPLETED (CustomStatus: ERROR)");
+      expect(result.content[0].text).toContain("guid-soft-fault");
+    });
+
+    it("does not show CustomStatus when not set", async () => {
+      mockODataClient.getCollection.mockResolvedValue([makeMpl()]);
+      const result = await handlers.get("list_messages")!({});
+      expect(result.content[0].text).toContain("Status: COMPLETED");
+      expect(result.content[0].text).not.toContain("CustomStatus");
+    });
+  });
+
+  describe("list_messages_with_headers", () => {
+    it("returns no-messages text when empty", async () => {
+      mockODataClient.getCollection.mockResolvedValue([]);
+      const result = await handlers.get("list_messages_with_headers")!({});
+      expect(result.content[0].text).toContain("No messages found");
+    });
+
+    it("fetches CustomHeaderProperties per message and includes them inline", async () => {
+      mockODataClient.getCollection
+        .mockResolvedValueOnce([
+          makeMpl({ MessageGuid: "guid-1" }),
+          makeMpl({ MessageGuid: "guid-2" }),
+        ])
+        .mockResolvedValueOnce([
+          { Id: "h1", Name: "recordCount", Value: "100" },
+          { Id: "h2", Name: "topic", Value: "topic-A" },
+        ])
+        .mockResolvedValueOnce([{ Id: "h3", Name: "recordCount", Value: "250" }]);
+
+      const result = await handlers.get("list_messages_with_headers")!({});
+      const text = result.content[0].text;
+      expect(text).toContain("Found 2 message(s)");
+      expect(text).toContain("recordCount: 100");
+      expect(text).toContain("topic: topic-A");
+      expect(text).toContain("recordCount: 250");
+      expect(mockODataClient.getCollection).toHaveBeenCalledWith(
+        "/api/v1/MessageProcessingLogs('guid-1')/CustomHeaderProperties"
+      );
+      expect(mockODataClient.getCollection).toHaveBeenCalledWith(
+        "/api/v1/MessageProcessingLogs('guid-2')/CustomHeaderProperties"
+      );
+    });
+
+    it("filters headers to whitelist via headerNames", async () => {
+      mockODataClient.getCollection
+        .mockResolvedValueOnce([makeMpl()])
+        .mockResolvedValueOnce([
+          { Id: "h1", Name: "recordCount", Value: "100" },
+          { Id: "h2", Name: "topic", Value: "topic-A" },
+        ]);
+      const result = await handlers.get("list_messages_with_headers")!({
+        headerNames: ["recordCount"],
+      });
+      expect(result.content[0].text).toContain("recordCount: 100");
+      expect(result.content[0].text).not.toContain("topic");
+    });
+
+    it("reports 'none of the requested names set' when whitelist matches nothing", async () => {
+      mockODataClient.getCollection
+        .mockResolvedValueOnce([makeMpl()])
+        .mockResolvedValueOnce([{ Id: "h1", Name: "otherHeader", Value: "x" }]);
+      const result = await handlers.get("list_messages_with_headers")!({
+        headerNames: ["missing"],
+      });
+      expect(result.content[0].text).toContain("none of the requested names set");
+    });
+
+    it("captures fetch errors per message without failing the batch", async () => {
+      mockODataClient.getCollection
+        .mockResolvedValueOnce([
+          makeMpl({ MessageGuid: "guid-1" }),
+          makeMpl({ MessageGuid: "guid-2" }),
+        ])
+        .mockRejectedValueOnce(new Error("OData error (500): boom"))
+        .mockResolvedValueOnce([{ Id: "h1", Name: "ok", Value: "yes" }]);
+
+      const result = await handlers.get("list_messages_with_headers")!({});
+      const text = result.content[0].text;
+      expect(result.isError).toBeUndefined();
+      expect(text).toContain("1 header fetch error(s)");
+      expect(text).toContain("ok: yes");
+      expect(text).toContain("(error: OData error (500): boom)");
+    });
+
+    it("clamps concurrency to 1..50", async () => {
+      mockODataClient.getCollection.mockResolvedValueOnce(
+        Array.from({ length: 3 }, (_, i) => makeMpl({ MessageGuid: `guid-${i}` }))
+      );
+      mockODataClient.getCollection.mockResolvedValue([]);
+      const result = await handlers.get("list_messages_with_headers")!({ concurrency: 0 });
+      expect(result.content[0].text).toContain("Found 3 message(s)");
+      expect(mockODataClient.getCollection).toHaveBeenCalledTimes(4);
+    });
+
+    it("returns error when the message list fails", async () => {
+      mockODataClient.getCollection.mockRejectedValue(new Error("OData error (500): fail"));
+      const result = await handlers.get("list_messages_with_headers")!({});
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe("aggregate_messages", () => {
+    it("returns no-messages text when count is 0", async () => {
+      mockODataClient.getValue.mockResolvedValue("0");
+      const result = await handlers.get("aggregate_messages")!({});
+      expect(result.content[0].text).toContain("No messages");
+    });
+
+    it("aggregates by flow name and returns top groups", async () => {
+      mockODataClient.getValue.mockResolvedValue("4");
+      mockODataClient.getCollection.mockResolvedValueOnce([
+        { IntegrationFlowName: "Flow_A" },
+        { IntegrationFlowName: "Flow_A" },
+        { IntegrationFlowName: "Flow_B" },
+        { IntegrationFlowName: "Flow_A" },
+      ]);
+
+      const result = await handlers.get("aggregate_messages")!({ status: "FAILED" });
+      const text = result.content[0].text;
+      expect(text).toContain("Total messages matched: 4");
+      expect(text).toContain("Distinct groups: 2");
+      expect(text).toMatch(/3\s+Flow_A/);
+      expect(text).toMatch(/1\s+Flow_B/);
+      expect(mockODataClient.getValue).toHaveBeenCalledWith(
+        expect.stringContaining("$count?%24filter=Status%20eq%20'FAILED'")
+      );
+    });
+
+    it("groups by customStatus", async () => {
+      mockODataClient.getValue.mockResolvedValue("2");
+      mockODataClient.getCollection.mockResolvedValueOnce([
+        { CustomStatus: "ERROR" },
+        { CustomStatus: "ERROR" },
+      ]);
+      const result = await handlers.get("aggregate_messages")!({ groupBy: "customStatus" });
+      expect(result.content[0].text).toContain("Aggregation by customStatus (CustomStatus)");
+      expect(result.content[0].text).toMatch(/2\s+ERROR/);
+    });
+
+    it("paginates across multiple pages until total reached", async () => {
+      mockODataClient.getValue.mockResolvedValue("1500");
+      mockODataClient.getCollection
+        .mockResolvedValueOnce(Array.from({ length: 1000 }, () => ({ IntegrationFlowName: "Flow_X" })))
+        .mockResolvedValueOnce(Array.from({ length: 500 }, () => ({ IntegrationFlowName: "Flow_X" })));
+
+      const result = await handlers.get("aggregate_messages")!({});
+      expect(mockODataClient.getCollection).toHaveBeenCalledTimes(2);
+      expect(result.content[0].text).toContain("Messages scanned: 1500");
+      expect(result.content[0].text).toMatch(/1500\s+Flow_X/);
+    });
+
+    it("flags truncation when total exceeds maxScan", async () => {
+      mockODataClient.getValue.mockResolvedValue("5000");
+      mockODataClient.getCollection.mockResolvedValue(
+        Array.from({ length: 100 }, () => ({ IntegrationFlowName: "Flow_Y" }))
+      );
+      const result = await handlers.get("aggregate_messages")!({ maxScan: 100 });
+      expect(result.content[0].text).toContain("truncated");
+    });
+
+    it("summarises groups beyond top", async () => {
+      mockODataClient.getValue.mockResolvedValue("3");
+      mockODataClient.getCollection.mockResolvedValueOnce([
+        { IntegrationFlowName: "Flow_A" },
+        { IntegrationFlowName: "Flow_B" },
+        { IntegrationFlowName: "Flow_C" },
+      ]);
+      const result = await handlers.get("aggregate_messages")!({ top: 1 });
+      expect(result.content[0].text).toContain("(2 other groups)");
+    });
+
+    it("groups null flow names as (unknown)", async () => {
+      mockODataClient.getValue.mockResolvedValue("2");
+      mockODataClient.getCollection.mockResolvedValueOnce([
+        { IntegrationFlowName: null },
+        { IntegrationFlowName: null },
+      ]);
+      const result = await handlers.get("aggregate_messages")!({});
+      expect(result.content[0].text).toMatch(/2\s+\(unknown\)/);
     });
   });
 

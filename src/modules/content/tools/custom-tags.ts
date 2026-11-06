@@ -1,6 +1,7 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import {
   buildCustomTagsConfigValuePath,
   buildCustomTagsConfigsPath,
@@ -19,23 +20,12 @@ export function registerCustomTagTools(
         "Get the custom tags configuration. Returns the JSON definition of all custom tags.",
       inputSchema: z.object({}),
     },
-    async () => {
-      try {
-        const content = await context.odataClient.getValue(
-          buildCustomTagsConfigValuePath()
-        );
-        return {
-          content: [{ type: "text" as const, text: content }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async () => {
+      const content = await context.odataClient.getValue(
+        buildCustomTagsConfigValuePath()
+      );
+      return content;
+    })
   );
 
   // 2. update_custom_tags_config
@@ -59,38 +49,20 @@ export function registerCustomTagTools(
           ),
       }),
     },
-    async ({ content, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Custom tags configuration to update:");
-          lines.push("");
-          lines.push(`Content: ${content}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        await context.odataClient.post(buildCustomTagsConfigsPath(), {
-          customTagsConfiguration: content,
-        });
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: "Custom tags configuration updated successfully.",
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ content, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Custom tags configuration to update:");
+        lines.push("");
+        lines.push(`Content: ${content}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      await context.odataClient.post(buildCustomTagsConfigsPath(), {
+        customTagsConfiguration: content,
+      });
+      return "Custom tags configuration updated successfully.";
+    })
   );
 }

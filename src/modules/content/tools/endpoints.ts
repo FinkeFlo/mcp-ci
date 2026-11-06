@@ -1,6 +1,7 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type { ServiceEndpoint } from "../types.js";
 import {
   buildServiceEndpointsPath,
@@ -53,39 +54,24 @@ export function registerEndpointTools(
           .describe("Number of results to skip (for pagination)"),
       }),
     },
-    async ({ filter, select, expand, top, skip }) => {
-      try {
-        const endpoints =
-          await context.odataClient.getCollection<ServiceEndpoint>(
-            buildServiceEndpointsPath(),
-            {
-              $filter: filter,
-              $select: select,
-              $expand: expand,
-              $top: top,
-              $skip: skip,
-            }
-          );
-        if (endpoints.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No service endpoints found." },
-            ],
-          };
-        }
-        const text = endpoints.map(formatEndpoint).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ filter, select, expand, top, skip }) => {
+      const endpoints =
+        await context.odataClient.getCollection<ServiceEndpoint>(
+          buildServiceEndpointsPath(),
+          {
+            $filter: filter,
+            $select: select,
+            $expand: expand,
+            $top: top,
+            $skip: skip,
+          }
+        );
+      if (endpoints.length === 0) {
+        return "No service endpoints found.";
       }
-    }
+      const text = endpoints.map(formatEndpoint).join("\n\n");
+      return text;
+    })
   );
 
   // @api GET /ServiceEndpoints/$count
@@ -96,22 +82,11 @@ export function registerEndpointTools(
         "Count service endpoints on the active SAP Cloud Integration tenant.",
       inputSchema: z.object({}),
     },
-    async () => {
-      try {
-        const count = await context.odataClient.getValue(
-          buildServiceEndpointsCountPath()
-        );
-        return {
-          content: [{ type: "text" as const, text: count }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async () => {
+      const count = await context.odataClient.getValue(
+        buildServiceEndpointsCountPath()
+      );
+      return count;
+    })
   );
 }

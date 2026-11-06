@@ -1,6 +1,7 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type {
   IntegrationDesigntimeArtifact,
   Configuration,
@@ -70,35 +71,17 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
         packageId: z.string().describe("The integration package ID"),
       }),
     },
-    async ({ packageId }) => {
-      try {
-        const artifacts =
-          await context.odataClient.getCollection<IntegrationDesigntimeArtifact>(
-            buildPackageDesigntimeArtifactsPath(packageId)
-          );
-        if (artifacts.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No designtime artifacts found.",
-              },
-            ],
-          };
-        }
-        const text = artifacts.map(formatArtifact).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ packageId }) => {
+      const artifacts =
+        await context.odataClient.getCollection<IntegrationDesigntimeArtifact>(
+          buildPackageDesigntimeArtifactsPath(packageId)
+        );
+      if (artifacts.length === 0) {
+        return "No designtime artifacts found.";
       }
-    }
+      const text = artifacts.map(formatArtifact).join("\n\n");
+      return text;
+    })
   );
 
   // 2. get_designtime_artifact
@@ -116,25 +99,14 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
           .describe("The artifact version (default: 'active')"),
       }),
     },
-    async ({ id, version }) => {
-      try {
-        const artifact =
-          await context.odataClient.getEntity<IntegrationDesigntimeArtifact>(
-            buildDesigntimeArtifactPath(id, version ?? "active")
-          );
-        const text = formatArtifact(artifact);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id, version }) => {
+      const artifact =
+        await context.odataClient.getEntity<IntegrationDesigntimeArtifact>(
+          buildDesigntimeArtifactPath(id, version ?? "active")
+        );
+      const text = formatArtifact(artifact);
+      return text;
+    })
   );
 
   // 3. create_designtime_artifact
@@ -158,49 +130,31 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
           .describe("Set to true to actually create the artifact"),
       }),
     },
-    async ({ id, name, packageId, artifactContent, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Artifact to create:");
-          lines.push("");
-          lines.push(`Id: ${id}`);
-          lines.push(`Name: ${name}`);
-          lines.push(`PackageId: ${packageId}`);
-          lines.push(
-            `ArtifactContent: ${artifactContent ? "(provided)" : "n/a"}`
-          );
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {
-          Id: id,
-          Name: name,
-          PackageId: packageId,
-        };
-        if (artifactContent !== undefined)
-          body.ArtifactContent = artifactContent;
-        await context.odataClient.post(buildDesigntimeArtifactsPath(), body);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Artifact '${id}' created successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, name, packageId, artifactContent, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Artifact to create:");
+        lines.push("");
+        lines.push(`Id: ${id}`);
+        lines.push(`Name: ${name}`);
+        lines.push(`PackageId: ${packageId}`);
+        lines.push(
+          `ArtifactContent: ${artifactContent ? "(provided)" : "n/a"}`
+        );
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {
+        Id: id,
+        Name: name,
+        PackageId: packageId,
+      };
+      if (artifactContent !== undefined)
+        body.ArtifactContent = artifactContent;
+      await context.odataClient.post(buildDesigntimeArtifactsPath(), body);
+      return `Artifact '${id}' created successfully.`;
+    })
   );
 
   // 4. update_designtime_artifact
@@ -225,54 +179,36 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
           .describe("Set to true to actually update the artifact"),
       }),
     },
-    async ({ id, version, name, artifactContent, confirm }) => {
-      try {
-        if (!confirm) {
-          const artifact =
-            await context.odataClient.getEntity<IntegrationDesigntimeArtifact>(
-              buildDesigntimeArtifactPath(id, version)
-            );
-          const lines: string[] = [];
-          lines.push("Artifact to update:");
-          lines.push("");
-          lines.push(formatArtifact(artifact));
-          lines.push("");
-          lines.push("Proposed changes:");
-          if (name !== undefined)
-            lines.push(`  Name: ${artifact.Name} -> ${name}`);
-          if (artifactContent !== undefined)
-            lines.push(`  ArtifactContent: (new content provided)`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {};
-        if (name !== undefined) body.Name = name;
+    textTool(async ({ id, version, name, artifactContent, confirm }) => {
+      if (!confirm) {
+        const artifact =
+          await context.odataClient.getEntity<IntegrationDesigntimeArtifact>(
+            buildDesigntimeArtifactPath(id, version)
+          );
+        const lines: string[] = [];
+        lines.push("Artifact to update:");
+        lines.push("");
+        lines.push(formatArtifact(artifact));
+        lines.push("");
+        lines.push("Proposed changes:");
+        if (name !== undefined)
+          lines.push(`  Name: ${artifact.Name} -> ${name}`);
         if (artifactContent !== undefined)
-          body.ArtifactContent = artifactContent;
-        await context.odataClient.put(
-          buildDesigntimeArtifactPath(id, version),
-          body
-        );
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Artifact '${id}' updated successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+          lines.push(`  ArtifactContent: (new content provided)`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {};
+      if (name !== undefined) body.Name = name;
+      if (artifactContent !== undefined)
+        body.ArtifactContent = artifactContent;
+      await context.odataClient.put(
+        buildDesigntimeArtifactPath(id, version),
+        body
+      );
+      return `Artifact '${id}' updated successfully.`;
+    })
   );
 
   // 5. delete_designtime_artifact
@@ -292,43 +228,20 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
           .describe("Set to true to actually delete the artifact"),
       }),
     },
-    async ({ id, version, confirm }) => {
-      try {
-        if (!confirm) {
-          const artifact =
-            await context.odataClient.getEntity<IntegrationDesigntimeArtifact>(
-              buildDesigntimeArtifactPath(id, version)
-            );
-          const preview = formatArtifact(artifact);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Artifact to delete:\n\n${preview}\n\nSet confirm to true to proceed.`,
-              },
-            ],
-          };
-        }
-        await context.odataClient.delete(
-          buildDesigntimeArtifactPath(id, version)
-        );
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Artifact '${id}' deleted successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, version, confirm }) => {
+      if (!confirm) {
+        const artifact =
+          await context.odataClient.getEntity<IntegrationDesigntimeArtifact>(
+            buildDesigntimeArtifactPath(id, version)
+          );
+        const preview = formatArtifact(artifact);
+        return `Artifact to delete:\n\n${preview}\n\nSet confirm to true to proceed.`;
       }
-    }
+      await context.odataClient.delete(
+        buildDesigntimeArtifactPath(id, version)
+      );
+      return `Artifact '${id}' deleted successfully.`;
+    })
   );
 
   // 6. deploy_designtime_artifact
@@ -347,39 +260,21 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
           .describe("Set to true to actually deploy the artifact"),
       }),
     },
-    async ({ id, version, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Artifact to deploy:");
-          lines.push("");
-          lines.push(`Id: ${id}`);
-          lines.push(`Version: ${version}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const path = `${buildDeployDesigntimeArtifactPath()}?Id='${escapeOData(id)}'&Version='${escapeOData(version)}'`;
-        await context.odataClient.post(path);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Artifact '${id}' deployment triggered successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, version, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Artifact to deploy:");
+        lines.push("");
+        lines.push(`Id: ${id}`);
+        lines.push(`Version: ${version}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const path = `${buildDeployDesigntimeArtifactPath()}?Id='${escapeOData(id)}'&Version='${escapeOData(version)}'`;
+      await context.odataClient.post(path);
+      return `Artifact '${id}' deployment triggered successfully.`;
+    })
   );
 
   // 7. validate_designtime_artifact
@@ -398,39 +293,21 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
           .describe("Set to true to actually validate the artifact"),
       }),
     },
-    async ({ id, version, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Artifact to validate:");
-          lines.push("");
-          lines.push(`Id: ${id}`);
-          lines.push(`Version: ${version}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const path = `${buildValidateDesigntimeArtifactPath()}?Id='${escapeOData(id)}'&Version='${escapeOData(version)}'`;
-        await context.odataClient.post(path);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Artifact '${id}' validation triggered successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, version, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Artifact to validate:");
+        lines.push("");
+        lines.push(`Id: ${id}`);
+        lines.push(`Version: ${version}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const path = `${buildValidateDesigntimeArtifactPath()}?Id='${escapeOData(id)}'&Version='${escapeOData(version)}'`;
+      await context.odataClient.post(path);
+      return `Artifact '${id}' validation triggered successfully.`;
+    })
   );
 
   // 8. download_designtime_artifact
@@ -448,28 +325,12 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
           .describe("The artifact version (default: 'active')"),
       }),
     },
-    async ({ id, version }) => {
-      try {
-        const content = await context.odataClient.getValue(
-          buildDesigntimeArtifactValuePath(id, version ?? "active")
-        );
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Artifact '${id}' downloaded successfully. Content length: ${content.length} bytes (binary ZIP data).`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id, version }) => {
+      const content = await context.odataClient.getValue(
+        buildDesigntimeArtifactValuePath(id, version ?? "active")
+      );
+      return `Artifact '${id}' downloaded successfully. Content length: ${content.length} bytes (binary ZIP data).`;
+    })
   );
 
   // 9. save_designtime_artifact_version
@@ -491,40 +352,22 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
           .describe("Set to true to actually save the new version"),
       }),
     },
-    async ({ id, version, newVersion, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Artifact version to save:");
-          lines.push("");
-          lines.push(`Id: ${id}`);
-          lines.push(`Current Version: ${version}`);
-          lines.push(`New Version: ${newVersion}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const path = `${buildSaveDesigntimeArtifactVersionPath()}?Id='${escapeOData(id)}'&Version='${escapeOData(version)}'&SaveAsVersion='${escapeOData(newVersion)}'`;
-        await context.odataClient.post(path);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Artifact '${id}' saved as version '${newVersion}' successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, version, newVersion, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Artifact version to save:");
+        lines.push("");
+        lines.push(`Id: ${id}`);
+        lines.push(`Current Version: ${version}`);
+        lines.push(`New Version: ${newVersion}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const path = `${buildSaveDesigntimeArtifactVersionPath()}?Id='${escapeOData(id)}'&Version='${escapeOData(version)}'&SaveAsVersion='${escapeOData(newVersion)}'`;
+      await context.odataClient.post(path);
+      return `Artifact '${id}' saved as version '${newVersion}' successfully.`;
+    })
   );
 
   // 10. list_configurations
@@ -542,35 +385,17 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
           .describe("The artifact version (default: 'active')"),
       }),
     },
-    async ({ artifactId, version }) => {
-      try {
-        const configs =
-          await context.odataClient.getCollection<Configuration>(
-            buildConfigurationsPath(artifactId, version ?? "active")
-          );
-        if (configs.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No configurations found.",
-              },
-            ],
-          };
-        }
-        const text = configs.map(formatConfiguration).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ artifactId, version }) => {
+      const configs =
+        await context.odataClient.getCollection<Configuration>(
+          buildConfigurationsPath(artifactId, version ?? "active")
+        );
+      if (configs.length === 0) {
+        return "No configurations found.";
       }
-    }
+      const text = configs.map(formatConfiguration).join("\n\n");
+      return text;
+    })
   );
 
   // 11. update_configuration
@@ -597,7 +422,7 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
           .describe("Set to true to actually update the configuration"),
       }),
     },
-    async ({
+    textTool(async ({
       artifactId,
       version,
       parameterKey,
@@ -605,47 +430,29 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
       dataType,
       confirm,
     }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Configuration to update:");
-          lines.push("");
-          lines.push(`ArtifactId: ${artifactId}`);
-          lines.push(`Version: ${version}`);
-          lines.push(`ParameterKey: ${parameterKey}`);
-          lines.push(`ParameterValue: ${parameterValue}`);
-          lines.push(`DataType: ${dataType ?? "n/a"}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {
-          ParameterValue: parameterValue,
-        };
-        if (dataType !== undefined) body.DataType = dataType;
-        await context.odataClient.put(
-          buildConfigurationLinkPath(artifactId, version, parameterKey),
-          body
-        );
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Configuration '${parameterKey}' updated successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Configuration to update:");
+        lines.push("");
+        lines.push(`ArtifactId: ${artifactId}`);
+        lines.push(`Version: ${version}`);
+        lines.push(`ParameterKey: ${parameterKey}`);
+        lines.push(`ParameterValue: ${parameterValue}`);
+        lines.push(`DataType: ${dataType ?? "n/a"}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {
+        ParameterValue: parameterValue,
+      };
+      if (dataType !== undefined) body.DataType = dataType;
+      await context.odataClient.put(
+        buildConfigurationLinkPath(artifactId, version, parameterKey),
+        body
+      );
+      return `Configuration '${parameterKey}' updated successfully.`;
+    })
   );
 
   // 12. list_resources
@@ -663,35 +470,17 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
           .describe("The artifact version (default: 'active')"),
       }),
     },
-    async ({ artifactId, version }) => {
-      try {
-        const resources =
-          await context.odataClient.getCollection<Resource>(
-            buildResourcesPath(artifactId, version ?? "active")
-          );
-        if (resources.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No resources found.",
-              },
-            ],
-          };
-        }
-        const text = resources.map(formatResource).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ artifactId, version }) => {
+      const resources =
+        await context.odataClient.getCollection<Resource>(
+          buildResourcesPath(artifactId, version ?? "active")
+        );
+      if (resources.length === 0) {
+        return "No resources found.";
       }
-    }
+      const text = resources.map(formatResource).join("\n\n");
+      return text;
+    })
   );
 
   // 13. get_resource
@@ -708,24 +497,13 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
         resourceType: z.string().describe("The resource type"),
       }),
     },
-    async ({ artifactId, version, name, resourceType }) => {
-      try {
-        const resource = await context.odataClient.getEntity<Resource>(
-          buildResourcePath(artifactId, version, name, resourceType)
-        );
-        const text = formatResourceDetail(resource);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ artifactId, version, name, resourceType }) => {
+      const resource = await context.odataClient.getEntity<Resource>(
+        buildResourcePath(artifactId, version, name, resourceType)
+      );
+      const text = formatResourceDetail(resource);
+      return text;
+    })
   );
 
   // 14. download_resource
@@ -742,35 +520,17 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
         resourceType: z.string().describe("The resource type"),
       }),
     },
-    async ({ artifactId, version, name, resourceType }) => {
-      try {
-        const content = await context.odataClient.getValue(
-          buildResourceValuePath(artifactId, version, name, resourceType)
-        );
-        const MAX_SIZE = 100 * 1024; // 100KB
-        if (content.length > MAX_SIZE) {
-          const truncated = content.slice(0, MAX_SIZE);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `${truncated}\n\n--- TRUNCATED: Content exceeds 100KB (${content.length} bytes total). Only the first 100KB is shown. ---`,
-              },
-            ],
-          };
-        }
-        return {
-          content: [{ type: "text" as const, text: content }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ artifactId, version, name, resourceType }) => {
+      const content = await context.odataClient.getValue(
+        buildResourceValuePath(artifactId, version, name, resourceType)
+      );
+      const MAX_SIZE = 100 * 1024; // 100KB
+      if (content.length > MAX_SIZE) {
+        const truncated = content.slice(0, MAX_SIZE);
+        return `${truncated}\n\n--- TRUNCATED: Content exceeds 100KB (${content.length} bytes total). Only the first 100KB is shown. ---`;
       }
-    }
+      return content;
+    })
   );
 
   // 15. count_configurations
@@ -788,23 +548,12 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
           .describe("The artifact version (default: 'active')"),
       }),
     },
-    async ({ artifactId, version }) => {
-      try {
-        const count = await context.odataClient.getValue(
-          buildConfigurationsCountPath(artifactId, version ?? "active")
-        );
-        return {
-          content: [{ type: "text" as const, text: count }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ artifactId, version }) => {
+      const count = await context.odataClient.getValue(
+        buildConfigurationsCountPath(artifactId, version ?? "active")
+      );
+      return count;
+    })
   );
 
   // 16. count_resources
@@ -822,22 +571,11 @@ export function registerFlowTools(server: McpServer, context: ModuleContext) {
           .describe("The artifact version (default: 'active')"),
       }),
     },
-    async ({ artifactId, version }) => {
-      try {
-        const count = await context.odataClient.getValue(
-          buildResourcesCountPath(artifactId, version ?? "active")
-        );
-        return {
-          content: [{ type: "text" as const, text: count }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ artifactId, version }) => {
+      const count = await context.odataClient.getValue(
+        buildResourcesCountPath(artifactId, version ?? "active")
+      );
+      return count;
+    })
   );
 }

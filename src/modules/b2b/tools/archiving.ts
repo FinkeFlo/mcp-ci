@@ -1,6 +1,7 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type { B2BArchivingKpi } from "../types.js";
 import {
   buildB2BArchivingConfigPath,
@@ -73,19 +74,10 @@ export function registerB2BArchivingTools(
         tenantName: z.string().describe("The tenant name to retrieve archiving configuration for"),
       }),
     },
-    async ({ tenantName }) => {
-      try {
-        const statusText = await getB2BArchivingStatus(context, tenantName);
-        return {
-          content: [{ type: "text" as const, text: statusText }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [{ type: "text" as const, text: (error as Error).message }],
-        };
-      }
-    }
+    textTool(async ({ tenantName }) => {
+      const statusText = await getB2BArchivingStatus(context, tenantName);
+      return statusText;
+    })
   );
 
   // @api GET /B2BArchivingKeyPerformanceIndicators
@@ -103,31 +95,18 @@ export function registerB2BArchivingTools(
           ),
       }),
     },
-    async ({ filter }) => {
-      try {
-        const params = filter ? { $filter: filter } : undefined;
-        const kpis = await context.odataClient.getCollection<B2BArchivingKpi>(
-          buildB2BArchivingKpisPath(),
-          params
-        );
-        if (kpis.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No B2B archiving runs found." },
-            ],
-          };
-        }
-        const text = kpis.map(formatB2BArchivingKpi).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [{ type: "text" as const, text: (error as Error).message }],
-        };
+    textTool(async ({ filter }) => {
+      const params = filter ? { $filter: filter } : undefined;
+      const kpis = await context.odataClient.getCollection<B2BArchivingKpi>(
+        buildB2BArchivingKpisPath(),
+        params
+      );
+      if (kpis.length === 0) {
+        return "No B2B archiving runs found.";
       }
-    }
+      const text = kpis.map(formatB2BArchivingKpi).join("\n\n");
+      return text;
+    })
   );
 
   // @api POST /activateB2BArchivingConfiguration
@@ -144,37 +123,21 @@ export function registerB2BArchivingTools(
           .describe("Set to true to actually activate B2B archiving"),
       }),
     },
-    async ({ tenantName, confirm }) => {
-      try {
-        if (!confirm) {
-          const statusText = await getB2BArchivingStatus(context, tenantName);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Current status: ${statusText}\n\nThis will activate B2B archiving. Call again with confirm: true to proceed.`,
-              },
-            ],
-          };
-        }
-
-        const result = await context.odataClient.post(
-          buildActivateB2BArchivingPath(),
-          { TenantName: tenantName }
-        );
-        const message =
-          result?.message ??
-          result?.d?.message ??
-          "B2B archiving activated successfully.";
-        return {
-          content: [{ type: "text" as const, text: String(message) }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [{ type: "text" as const, text: (error as Error).message }],
-        };
+    textTool(async ({ tenantName, confirm }) => {
+      if (!confirm) {
+        const statusText = await getB2BArchivingStatus(context, tenantName);
+        return `Current status: ${statusText}\n\nThis will activate B2B archiving. Call again with confirm: true to proceed.`;
       }
-    }
+
+      const result = await context.odataClient.post(
+        buildActivateB2BArchivingPath(),
+        { TenantName: tenantName }
+      );
+      const message =
+        result?.message ??
+        result?.d?.message ??
+        "B2B archiving activated successfully.";
+      return String(message);
+    })
   );
 }

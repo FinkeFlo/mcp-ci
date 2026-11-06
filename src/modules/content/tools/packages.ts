@@ -1,6 +1,7 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type { IntegrationPackage } from "../types.js";
 import { escapeOData } from "../../../core/odata-utils.js";
 import {
@@ -69,33 +70,18 @@ export function registerPackageTools(
           .describe("Number of results to skip (for pagination)"),
       }),
     },
-    async ({ top, skip }) => {
-      try {
-        const packages =
-          await context.odataClient.getCollection<IntegrationPackage>(
-            buildPackagesPath(),
-            { $top: top, $skip: skip }
-          );
-        if (packages.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No integration packages found." },
-            ],
-          };
-        }
-        const text = packages.map(formatPackageSummary).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ top, skip }) => {
+      const packages =
+        await context.odataClient.getCollection<IntegrationPackage>(
+          buildPackagesPath(),
+          { $top: top, $skip: skip }
+        );
+      if (packages.length === 0) {
+        return "No integration packages found.";
       }
-    }
+      const text = packages.map(formatPackageSummary).join("\n\n");
+      return text;
+    })
   );
 
   // @api GET /IntegrationPackages('{Id}')
@@ -108,25 +94,14 @@ export function registerPackageTools(
         id: z.string().describe("The integration package ID"),
       }),
     },
-    async ({ id }) => {
-      try {
-        const pkg =
-          await context.odataClient.getEntity<IntegrationPackage>(
-            buildPackagePath(id)
-          );
-        const text = formatPackageDetail(pkg);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id }) => {
+      const pkg =
+        await context.odataClient.getEntity<IntegrationPackage>(
+          buildPackagePath(id)
+        );
+      const text = formatPackageDetail(pkg);
+      return text;
+    })
   );
 
   // @api POST /IntegrationPackages
@@ -157,47 +132,29 @@ export function registerPackageTools(
           .describe("Set to true to actually create the package"),
       }),
     },
-    async ({ id, name, shortText, description, version, vendor, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Package to create:");
-          lines.push("");
-          lines.push(`Id: ${id}`);
-          lines.push(`Name: ${name}`);
-          lines.push(`ShortText: ${shortText ?? "n/a"}`);
-          lines.push(`Description: ${description ?? "n/a"}`);
-          lines.push(`Version: ${version ?? "n/a"}`);
-          lines.push(`Vendor: ${vendor ?? "n/a"}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = { Id: id, Name: name };
-        if (shortText !== undefined) body.ShortText = shortText;
-        if (description !== undefined) body.Description = description;
-        if (version !== undefined) body.Version = version;
-        if (vendor !== undefined) body.Vendor = vendor;
-        await context.odataClient.post(buildPackagesPath(), body);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Package '${id}' created successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, name, shortText, description, version, vendor, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Package to create:");
+        lines.push("");
+        lines.push(`Id: ${id}`);
+        lines.push(`Name: ${name}`);
+        lines.push(`ShortText: ${shortText ?? "n/a"}`);
+        lines.push(`Description: ${description ?? "n/a"}`);
+        lines.push(`Version: ${version ?? "n/a"}`);
+        lines.push(`Vendor: ${vendor ?? "n/a"}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = { Id: id, Name: name };
+      if (shortText !== undefined) body.ShortText = shortText;
+      if (description !== undefined) body.Description = description;
+      if (version !== undefined) body.Version = version;
+      if (vendor !== undefined) body.Vendor = vendor;
+      await context.odataClient.post(buildPackagesPath(), body);
+      return `Package '${id}' created successfully.`;
+    })
   );
 
   // @api GET /IntegrationPackages('{Id}')
@@ -226,58 +183,40 @@ export function registerPackageTools(
           .describe("Set to true to actually update the package"),
       }),
     },
-    async ({ id, name, shortText, description, version, vendor, confirm }) => {
-      try {
-        if (!confirm) {
-          const pkg =
-            await context.odataClient.getEntity<IntegrationPackage>(
-              buildPackagePath(id)
-            );
-          const lines: string[] = [];
-          lines.push("Package to update:");
-          lines.push("");
-          lines.push(formatPackageDetail(pkg));
-          lines.push("");
-          lines.push("Proposed changes:");
-          if (name !== undefined) lines.push(`  Name: ${pkg.Name} -> ${name}`);
-          if (shortText !== undefined)
-            lines.push(`  ShortText: ${pkg.ShortText} -> ${shortText}`);
-          if (description !== undefined)
-            lines.push(`  Description: ${pkg.Description} -> ${description}`);
-          if (version !== undefined)
-            lines.push(`  Version: ${pkg.Version} -> ${version}`);
-          if (vendor !== undefined)
-            lines.push(`  Vendor: ${pkg.Vendor} -> ${vendor}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {};
-        if (name !== undefined) body.Name = name;
-        if (shortText !== undefined) body.ShortText = shortText;
-        if (description !== undefined) body.Description = description;
-        if (version !== undefined) body.Version = version;
-        if (vendor !== undefined) body.Vendor = vendor;
-        await context.odataClient.put(buildPackagePath(id), body);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Package '${id}' updated successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, name, shortText, description, version, vendor, confirm }) => {
+      if (!confirm) {
+        const pkg =
+          await context.odataClient.getEntity<IntegrationPackage>(
+            buildPackagePath(id)
+          );
+        const lines: string[] = [];
+        lines.push("Package to update:");
+        lines.push("");
+        lines.push(formatPackageDetail(pkg));
+        lines.push("");
+        lines.push("Proposed changes:");
+        if (name !== undefined) lines.push(`  Name: ${pkg.Name} -> ${name}`);
+        if (shortText !== undefined)
+          lines.push(`  ShortText: ${pkg.ShortText} -> ${shortText}`);
+        if (description !== undefined)
+          lines.push(`  Description: ${pkg.Description} -> ${description}`);
+        if (version !== undefined)
+          lines.push(`  Version: ${pkg.Version} -> ${version}`);
+        if (vendor !== undefined)
+          lines.push(`  Vendor: ${pkg.Vendor} -> ${vendor}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {};
+      if (name !== undefined) body.Name = name;
+      if (shortText !== undefined) body.ShortText = shortText;
+      if (description !== undefined) body.Description = description;
+      if (version !== undefined) body.Version = version;
+      if (vendor !== undefined) body.Vendor = vendor;
+      await context.odataClient.put(buildPackagePath(id), body);
+      return `Package '${id}' updated successfully.`;
+    })
   );
 
   // @api GET /IntegrationPackages('{Id}')
@@ -295,41 +234,18 @@ export function registerPackageTools(
           .describe("Set to true to actually delete the package"),
       }),
     },
-    async ({ id, confirm }) => {
-      try {
-        if (!confirm) {
-          const pkg =
-            await context.odataClient.getEntity<IntegrationPackage>(
-              buildPackagePath(id)
-            );
-          const preview = formatPackageDetail(pkg);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Package to delete:\n\n${preview}\n\nSet confirm to true to proceed.`,
-              },
-            ],
-          };
-        }
-        await context.odataClient.delete(buildPackagePath(id));
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Package '${id}' deleted successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, confirm }) => {
+      if (!confirm) {
+        const pkg =
+          await context.odataClient.getEntity<IntegrationPackage>(
+            buildPackagePath(id)
+          );
+        const preview = formatPackageDetail(pkg);
+        return `Package to delete:\n\n${preview}\n\nSet confirm to true to proceed.`;
       }
-    }
+      await context.odataClient.delete(buildPackagePath(id));
+      return `Package '${id}' deleted successfully.`;
+    })
   );
 
   // @api GET /IntegrationPackages('{Id}')/$value
@@ -342,28 +258,12 @@ export function registerPackageTools(
         id: z.string().describe("The package ID to download"),
       }),
     },
-    async ({ id }) => {
-      try {
-        const content = await context.odataClient.getValue(
-          buildPackageValuePath(id)
-        );
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Package '${id}' downloaded successfully. Content length: ${content.length} bytes (binary ZIP data).`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id }) => {
+      const content = await context.odataClient.getValue(
+        buildPackageValuePath(id)
+      );
+      return `Package '${id}' downloaded successfully. Content length: ${content.length} bytes (binary ZIP data).`;
+    })
   );
 
   // @api POST /CopyIntegrationPackage
@@ -388,43 +288,25 @@ export function registerPackageTools(
           .describe("Set to true to actually copy the package"),
       }),
     },
-    async ({ id, importMode, suffix, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Package to copy:");
-          lines.push("");
-          lines.push(`Id: ${id}`);
-          lines.push(`ImportMode: ${importMode ?? "n/a"}`);
-          lines.push(`Suffix: ${suffix ?? "n/a"}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        let path = `${buildCopyPackagePath()}?Id='${escapeOData(id)}'`;
-        if (importMode !== undefined)
-          path += `&ImportMode=${encodeURIComponent(importMode)}`;
-        if (suffix !== undefined)
-          path += `&Suffix='${escapeOData(suffix)}'`;
-        await context.odataClient.post(path);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Package '${id}' copied successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, importMode, suffix, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Package to copy:");
+        lines.push("");
+        lines.push(`Id: ${id}`);
+        lines.push(`ImportMode: ${importMode ?? "n/a"}`);
+        lines.push(`Suffix: ${suffix ?? "n/a"}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      let path = `${buildCopyPackagePath()}?Id='${escapeOData(id)}'`;
+      if (importMode !== undefined)
+        path += `&ImportMode=${encodeURIComponent(importMode)}`;
+      if (suffix !== undefined)
+        path += `&Suffix='${escapeOData(suffix)}'`;
+      await context.odataClient.post(path);
+      return `Package '${id}' copied successfully.`;
+    })
   );
 }

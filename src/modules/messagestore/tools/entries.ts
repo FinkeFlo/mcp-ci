@@ -1,6 +1,7 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type {
   MessageStoreEntry,
   MessageStoreEntryAttachment,
@@ -77,35 +78,17 @@ export function registerEntryTools(
         messageGuid: z.string().describe("The message GUID"),
       }),
     },
-    async ({ messageGuid }) => {
-      try {
-        const entries =
-          await context.odataClient.getCollection<MessageStoreEntry>(
-            buildMessageStoreEntriesPath(messageGuid)
-          );
-        if (entries.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No message store entries found.",
-              },
-            ],
-          };
-        }
-        const text = entries.map(formatEntry).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ messageGuid }) => {
+      const entries =
+        await context.odataClient.getCollection<MessageStoreEntry>(
+          buildMessageStoreEntriesPath(messageGuid)
+        );
+      if (entries.length === 0) {
+        return "No message store entries found.";
       }
-    }
+      const text = entries.map(formatEntry).join("\n\n");
+      return text;
+    })
   );
 
   // @api GET /MessageStoreEntries('{MessageStoreEntryId}')
@@ -117,25 +100,14 @@ export function registerEntryTools(
         entryId: z.string().describe("The message store entry ID"),
       }),
     },
-    async ({ entryId }) => {
-      try {
-        const entry =
-          await context.odataClient.getEntity<MessageStoreEntry>(
-            buildMessageStoreEntryPath(entryId)
-          );
-        const text = formatEntry(entry);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ entryId }) => {
+      const entry =
+        await context.odataClient.getEntity<MessageStoreEntry>(
+          buildMessageStoreEntryPath(entryId)
+        );
+      const text = formatEntry(entry);
+      return text;
+    })
   );
 
   // @api GET /MessageStoreEntries('{MessageStoreEntryId}')/$value
@@ -148,30 +120,15 @@ export function registerEntryTools(
         entryId: z.string().describe("The message store entry ID"),
       }),
     },
-    async ({ entryId }) => {
-      try {
-        const content = await context.odataClient.getValue(
-          buildMessageStoreEntryValuePath(entryId)
-        );
-        if (!content) {
-          return {
-            content: [
-              { type: "text" as const, text: "No payload available." },
-            ],
-          };
-        }
-        return {
-          content: [{ type: "text" as const, text: content }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ entryId }) => {
+      const content = await context.odataClient.getValue(
+        buildMessageStoreEntryValuePath(entryId)
+      );
+      if (!content) {
+        return "No payload available.";
       }
-    }
+      return content;
+    })
   );
 
   // @api GET /MessageStoreEntries('{MessageStoreEntryId}')/Attachments
@@ -184,32 +141,17 @@ export function registerEntryTools(
         entryId: z.string().describe("The message store entry ID"),
       }),
     },
-    async ({ entryId }) => {
-      try {
-        const attachments =
-          await context.odataClient.getCollection<MessageStoreEntryAttachment>(
-            buildMessageStoreEntryAttachmentsPath(entryId)
-          );
-        if (attachments.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No attachments found." },
-            ],
-          };
-        }
-        const text = attachments.map(formatAttachment).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ entryId }) => {
+      const attachments =
+        await context.odataClient.getCollection<MessageStoreEntryAttachment>(
+          buildMessageStoreEntryAttachmentsPath(entryId)
+        );
+      if (attachments.length === 0) {
+        return "No attachments found.";
       }
-    }
+      const text = attachments.map(formatAttachment).join("\n\n");
+      return text;
+    })
   );
 
   // @api GET /MessageStoreEntryAttachments('{MessageStoreEntryAttachmentId}')
@@ -222,25 +164,14 @@ export function registerEntryTools(
         attachmentId: z.string().describe("The attachment ID"),
       }),
     },
-    async ({ attachmentId }) => {
-      try {
-        const attachment =
-          await context.odataClient.getEntity<MessageStoreEntryAttachment>(
-            buildMessageStoreEntryAttachmentPath(attachmentId)
-          );
-        const text = formatAttachment(attachment);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ attachmentId }) => {
+      const attachment =
+        await context.odataClient.getEntity<MessageStoreEntryAttachment>(
+          buildMessageStoreEntryAttachmentPath(attachmentId)
+        );
+      const text = formatAttachment(attachment);
+      return text;
+    })
   );
 
   // @api GET /MessageStoreEntryAttachments('{MessageStoreEntryAttachmentId}')/$value
@@ -253,33 +184,15 @@ export function registerEntryTools(
         attachmentId: z.string().describe("The attachment ID"),
       }),
     },
-    async ({ attachmentId }) => {
-      try {
-        const content = await context.odataClient.getValue(
-          buildMessageStoreEntryAttachmentValuePath(attachmentId)
-        );
-        if (!content) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No attachment content available.",
-              },
-            ],
-          };
-        }
-        return {
-          content: [{ type: "text" as const, text: content }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ attachmentId }) => {
+      const content = await context.odataClient.getValue(
+        buildMessageStoreEntryAttachmentValuePath(attachmentId)
+      );
+      if (!content) {
+        return "No attachment content available.";
       }
-    }
+      return content;
+    })
   );
 
   // @api GET /MessageStoreEntryAttachments('{MessageStoreEntryAttachmentId}')/Properties
@@ -292,35 +205,17 @@ export function registerEntryTools(
         attachmentId: z.string().describe("The attachment ID"),
       }),
     },
-    async ({ attachmentId }) => {
-      try {
-        const properties =
-          await context.odataClient.getCollection<MessageStoreEntryAttachmentProperty>(
-            buildMessageStoreEntryAttachmentPropertiesPath(attachmentId)
-          );
-        if (properties.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No attachment properties found.",
-              },
-            ],
-          };
-        }
-        const text = properties.map(formatAttachmentProperty).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ attachmentId }) => {
+      const properties =
+        await context.odataClient.getCollection<MessageStoreEntryAttachmentProperty>(
+          buildMessageStoreEntryAttachmentPropertiesPath(attachmentId)
+        );
+      if (properties.length === 0) {
+        return "No attachment properties found.";
       }
-    }
+      const text = properties.map(formatAttachmentProperty).join("\n\n");
+      return text;
+    })
   );
 
   // @api GET /MessageStoreEntryAttachmentProperties(AttachmentId='{MessageStoreEntryAttachmentId}',Name='{Name}')
@@ -334,25 +229,14 @@ export function registerEntryTools(
         name: z.string().describe("The property name"),
       }),
     },
-    async ({ attachmentId, name }) => {
-      try {
-        const property =
-          await context.odataClient.getEntity<MessageStoreEntryAttachmentProperty>(
-            buildMessageStoreEntryAttachmentPropertyPath(attachmentId, name)
-          );
-        const text = formatAttachmentProperty(property);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ attachmentId, name }) => {
+      const property =
+        await context.odataClient.getEntity<MessageStoreEntryAttachmentProperty>(
+          buildMessageStoreEntryAttachmentPropertyPath(attachmentId, name)
+        );
+      const text = formatAttachmentProperty(property);
+      return text;
+    })
   );
 
   // @api GET /MessageStoreEntries('{MessageStoreEntryId}')/Properties
@@ -365,35 +249,17 @@ export function registerEntryTools(
         entryId: z.string().describe("The message store entry ID"),
       }),
     },
-    async ({ entryId }) => {
-      try {
-        const properties =
-          await context.odataClient.getCollection<MessageStoreEntryProperty>(
-            buildMessageStoreEntryPropertiesPath(entryId)
-          );
-        if (properties.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No entry properties found.",
-              },
-            ],
-          };
-        }
-        const text = properties.map(formatProperty).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ entryId }) => {
+      const properties =
+        await context.odataClient.getCollection<MessageStoreEntryProperty>(
+          buildMessageStoreEntryPropertiesPath(entryId)
+        );
+      if (properties.length === 0) {
+        return "No entry properties found.";
       }
-    }
+      const text = properties.map(formatProperty).join("\n\n");
+      return text;
+    })
   );
 
   // @api GET /MessageStoreEntryProperties(MessageId='{MessageStoreEntryID}',Name='{PropertyName}')
@@ -407,24 +273,13 @@ export function registerEntryTools(
         propertyName: z.string().describe("The property name"),
       }),
     },
-    async ({ entryId, propertyName }) => {
-      try {
-        const property =
-          await context.odataClient.getEntity<MessageStoreEntryProperty>(
-            buildMessageStoreEntryPropertyPath(entryId, propertyName)
-          );
-        const text = formatProperty(property);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ entryId, propertyName }) => {
+      const property =
+        await context.odataClient.getEntity<MessageStoreEntryProperty>(
+          buildMessageStoreEntryPropertyPath(entryId, propertyName)
+        );
+      const text = formatProperty(property);
+      return text;
+    })
   );
 }

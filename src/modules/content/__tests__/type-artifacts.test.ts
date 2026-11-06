@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { registerTypeArtifactTools } from "../tools/type-artifacts.js";
 import type { ModuleContext } from "../../../core/types.js";
 

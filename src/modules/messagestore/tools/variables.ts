@@ -1,6 +1,7 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type { Variable } from "../types.js";
 import {
   buildVariablesPath,
@@ -30,32 +31,17 @@ export function registerVariableTools(
         "List all variables on the active SAP Cloud Integration tenant.",
       inputSchema: z.object({}),
     },
-    async () => {
-      try {
-        const variables =
-          await context.odataClient.getCollection<Variable>(
-            buildVariablesPath()
-          );
-        if (variables.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No variables found." },
-            ],
-          };
-        }
-        const text = variables.map(formatVariable).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async () => {
+      const variables =
+        await context.odataClient.getCollection<Variable>(
+          buildVariablesPath()
+        );
+      if (variables.length === 0) {
+        return "No variables found.";
       }
-    }
+      const text = variables.map(formatVariable).join("\n\n");
+      return text;
+    })
   );
 
   // @api GET /Variables(VariableName='{VariableName}',IntegrationFlow='{IntegrationFlowId}')
@@ -71,24 +57,13 @@ export function registerVariableTools(
           .describe("The integration flow ID"),
       }),
     },
-    async ({ variableName, integrationFlow }) => {
-      try {
-        const variable = await context.odataClient.getEntity<Variable>(
-          buildVariablePath(variableName, integrationFlow)
-        );
-        const text = formatVariable(variable);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ variableName, integrationFlow }) => {
+      const variable = await context.odataClient.getEntity<Variable>(
+        buildVariablePath(variableName, integrationFlow)
+      );
+      const text = formatVariable(variable);
+      return text;
+    })
   );
 
   // @api GET /Variables(VariableName='{VariableName}',IntegrationFlow='{IntegrationFlowId}')
@@ -109,40 +84,17 @@ export function registerVariableTools(
           .describe("Set to true to actually delete the variable"),
       }),
     },
-    async ({ variableName, integrationFlow, confirm }) => {
-      try {
-        const path = buildVariablePath(variableName, integrationFlow);
-        if (!confirm) {
-          const variable =
-            await context.odataClient.getEntity<Variable>(path);
-          const preview = formatVariable(variable);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Variable to delete:\n\n${preview}\n\nSet confirm to true to proceed.`,
-              },
-            ],
-          };
-        }
-        await context.odataClient.delete(path);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Variable '${variableName}' deleted successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ variableName, integrationFlow, confirm }) => {
+      const path = buildVariablePath(variableName, integrationFlow);
+      if (!confirm) {
+        const variable =
+          await context.odataClient.getEntity<Variable>(path);
+        const preview = formatVariable(variable);
+        return `Variable to delete:\n\n${preview}\n\nSet confirm to true to proceed.`;
       }
-    }
+      await context.odataClient.delete(path);
+      return `Variable '${variableName}' deleted successfully.`;
+    })
   );
 
   // @api GET /Variables(VariableName='{VariableName}',IntegrationFlow='{IntegrationFlowId}')/$value
@@ -158,32 +110,14 @@ export function registerVariableTools(
           .describe("The integration flow ID"),
       }),
     },
-    async ({ variableName, integrationFlow }) => {
-      try {
-        const content = await context.odataClient.getValue(
-          buildVariableValuePath(variableName, integrationFlow)
-        );
-        if (!content) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No variable content available.",
-              },
-            ],
-          };
-        }
-        return {
-          content: [{ type: "text" as const, text: content }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ variableName, integrationFlow }) => {
+      const content = await context.odataClient.getValue(
+        buildVariableValuePath(variableName, integrationFlow)
+      );
+      if (!content) {
+        return "No variable content available.";
       }
-    }
+      return content;
+    })
   );
 }

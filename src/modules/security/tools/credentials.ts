@@ -1,6 +1,7 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type {
   UserCredential,
   SecureParameter,
@@ -126,32 +127,17 @@ export function registerCredentialTools(
         "List user credentials on the active SAP Cloud Integration tenant.",
       inputSchema: z.object({}),
     },
-    async () => {
-      try {
-        const credentials =
-          await context.odataClient.getCollection<UserCredential>(
-            buildUserCredentialsPath()
-          );
-        if (credentials.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No user credentials found." },
-            ],
-          };
-        }
-        const text = credentials.map(formatUserCredentialSummary).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async () => {
+      const credentials =
+        await context.odataClient.getCollection<UserCredential>(
+          buildUserCredentialsPath()
+        );
+      if (credentials.length === 0) {
+        return "No user credentials found.";
       }
-    }
+      const text = credentials.map(formatUserCredentialSummary).join("\n\n");
+      return text;
+    })
   );
 
   // @api GET /UserCredentials('{Name}')
@@ -164,25 +150,14 @@ export function registerCredentialTools(
         name: z.string().describe("The user credential name"),
       }),
     },
-    async ({ name }) => {
-      try {
-        const credential =
-          await context.odataClient.getEntity<UserCredential>(
-            buildUserCredentialPath(name)
-          );
-        const text = formatUserCredentialDetail(credential);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ name }) => {
+      const credential =
+        await context.odataClient.getEntity<UserCredential>(
+          buildUserCredentialPath(name)
+        );
+      const text = formatUserCredentialDetail(credential);
+      return text;
+    })
   );
 
   // @api POST /UserCredentials
@@ -212,49 +187,31 @@ export function registerCredentialTools(
           .describe("Set to true to actually create the credential"),
       }),
     },
-    async ({ name, kind, user, password, description, companyId, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("User credential to create:");
-          lines.push("");
-          lines.push(`Name: ${name}`);
-          lines.push(`Kind: ${kind}`);
-          lines.push(`User: ${user}`);
-          lines.push(`Description: ${description ?? "n/a"}`);
-          lines.push(`CompanyId: ${companyId ?? "n/a"}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {
-          Name: name,
-          Kind: kind,
-          User: user,
-          Password: password,
-        };
-        if (description !== undefined) body.Description = description;
-        if (companyId !== undefined) body.CompanyId = companyId;
-        await context.odataClient.post(buildUserCredentialsPath(), body);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `User credential '${name}' created successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ name, kind, user, password, description, companyId, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("User credential to create:");
+        lines.push("");
+        lines.push(`Name: ${name}`);
+        lines.push(`Kind: ${kind}`);
+        lines.push(`User: ${user}`);
+        lines.push(`Description: ${description ?? "n/a"}`);
+        lines.push(`CompanyId: ${companyId ?? "n/a"}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {
+        Name: name,
+        Kind: kind,
+        User: user,
+        Password: password,
+      };
+      if (description !== undefined) body.Description = description;
+      if (companyId !== undefined) body.CompanyId = companyId;
+      await context.odataClient.post(buildUserCredentialsPath(), body);
+      return `User credential '${name}' created successfully.`;
+    })
   );
 
   // @api GET /UserCredentials('{Name}')
@@ -286,62 +243,44 @@ export function registerCredentialTools(
           .describe("Set to true to actually update the credential"),
       }),
     },
-    async ({ name, kind, user, password, description, companyId, confirm }) => {
-      try {
-        if (!confirm) {
-          const credential =
-            await context.odataClient.getEntity<UserCredential>(
-              buildUserCredentialPath(name)
-            );
-          const lines: string[] = [];
-          lines.push("User credential to update:");
-          lines.push("");
-          lines.push(formatUserCredentialDetail(credential));
-          lines.push("");
-          lines.push("Proposed changes:");
-          if (kind !== undefined)
-            lines.push(`  Kind: ${credential.Kind} -> ${kind}`);
-          if (user !== undefined)
-            lines.push(`  User: ${credential.User} -> ${user}`);
-          if (password !== undefined) lines.push("  Password: ***");
-          if (description !== undefined)
-            lines.push(
-              `  Description: ${credential.Description} -> ${description}`
-            );
-          if (companyId !== undefined)
-            lines.push(
-              `  CompanyId: ${credential.CompanyId} -> ${companyId}`
-            );
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {};
-        if (kind !== undefined) body.Kind = kind;
-        if (user !== undefined) body.User = user;
-        if (password !== undefined) body.Password = password;
-        if (description !== undefined) body.Description = description;
-        if (companyId !== undefined) body.CompanyId = companyId;
-        await context.odataClient.put(buildUserCredentialPath(name), body);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `User credential '${name}' updated successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ name, kind, user, password, description, companyId, confirm }) => {
+      if (!confirm) {
+        const credential =
+          await context.odataClient.getEntity<UserCredential>(
+            buildUserCredentialPath(name)
+          );
+        const lines: string[] = [];
+        lines.push("User credential to update:");
+        lines.push("");
+        lines.push(formatUserCredentialDetail(credential));
+        lines.push("");
+        lines.push("Proposed changes:");
+        if (kind !== undefined)
+          lines.push(`  Kind: ${credential.Kind} -> ${kind}`);
+        if (user !== undefined)
+          lines.push(`  User: ${credential.User} -> ${user}`);
+        if (password !== undefined) lines.push("  Password: ***");
+        if (description !== undefined)
+          lines.push(
+            `  Description: ${credential.Description} -> ${description}`
+          );
+        if (companyId !== undefined)
+          lines.push(
+            `  CompanyId: ${credential.CompanyId} -> ${companyId}`
+          );
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {};
+      if (kind !== undefined) body.Kind = kind;
+      if (user !== undefined) body.User = user;
+      if (password !== undefined) body.Password = password;
+      if (description !== undefined) body.Description = description;
+      if (companyId !== undefined) body.CompanyId = companyId;
+      await context.odataClient.put(buildUserCredentialPath(name), body);
+      return `User credential '${name}' updated successfully.`;
+    })
   );
 
   // @api GET /UserCredentials('{Name}')
@@ -359,41 +298,18 @@ export function registerCredentialTools(
           .describe("Set to true to actually delete the credential"),
       }),
     },
-    async ({ name, confirm }) => {
-      try {
-        if (!confirm) {
-          const credential =
-            await context.odataClient.getEntity<UserCredential>(
-              buildUserCredentialPath(name)
-            );
-          const preview = formatUserCredentialDetail(credential);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `User credential to delete:\n\n${preview}\n\nSet confirm to true to proceed.`,
-              },
-            ],
-          };
-        }
-        await context.odataClient.delete(buildUserCredentialPath(name));
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `User credential '${name}' deleted successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ name, confirm }) => {
+      if (!confirm) {
+        const credential =
+          await context.odataClient.getEntity<UserCredential>(
+            buildUserCredentialPath(name)
+          );
+        const preview = formatUserCredentialDetail(credential);
+        return `User credential to delete:\n\n${preview}\n\nSet confirm to true to proceed.`;
       }
-    }
+      await context.odataClient.delete(buildUserCredentialPath(name));
+      return `User credential '${name}' deleted successfully.`;
+    })
   );
 
   // ─── Secure Parameters ──────────────────────────────────────────────
@@ -406,32 +322,17 @@ export function registerCredentialTools(
         "List secure parameters on the active SAP Cloud Integration tenant. Neo environment only.",
       inputSchema: z.object({}),
     },
-    async () => {
-      try {
-        const params =
-          await context.odataClient.getCollection<SecureParameter>(
-            buildSecureParametersPath()
-          );
-        if (params.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No secure parameters found." },
-            ],
-          };
-        }
-        const text = params.map(formatSecureParameterSummary).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async () => {
+      const params =
+        await context.odataClient.getCollection<SecureParameter>(
+          buildSecureParametersPath()
+        );
+      if (params.length === 0) {
+        return "No secure parameters found.";
       }
-    }
+      const text = params.map(formatSecureParameterSummary).join("\n\n");
+      return text;
+    })
   );
 
   // @api GET /SecureParameters('{Name}')
@@ -444,25 +345,14 @@ export function registerCredentialTools(
         name: z.string().describe("The secure parameter name"),
       }),
     },
-    async ({ name }) => {
-      try {
-        const param =
-          await context.odataClient.getEntity<SecureParameter>(
-            buildSecureParameterPath(name)
-          );
-        const text = formatSecureParameterDetail(param);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ name }) => {
+      const param =
+        await context.odataClient.getEntity<SecureParameter>(
+          buildSecureParameterPath(name)
+        );
+      const text = formatSecureParameterDetail(param);
+      return text;
+    })
   );
 
   // @api POST /SecureParameters
@@ -484,43 +374,25 @@ export function registerCredentialTools(
           .describe("Set to true to actually create the secure parameter"),
       }),
     },
-    async ({ name, secureParam, description, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Secure parameter to create:");
-          lines.push("");
-          lines.push(`Name: ${name}`);
-          lines.push(`Description: ${description ?? "n/a"}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {
-          Name: name,
-          SecureParam: secureParam,
-        };
-        if (description !== undefined) body.Description = description;
-        await context.odataClient.post(buildSecureParametersPath(), body);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Secure parameter '${name}' created successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ name, secureParam, description, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Secure parameter to create:");
+        lines.push("");
+        lines.push(`Name: ${name}`);
+        lines.push(`Description: ${description ?? "n/a"}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {
+        Name: name,
+        SecureParam: secureParam,
+      };
+      if (description !== undefined) body.Description = description;
+      await context.odataClient.post(buildSecureParametersPath(), body);
+      return `Secure parameter '${name}' created successfully.`;
+    })
   );
 
   // @api GET /SecureParameters('{Name}')
@@ -546,51 +418,33 @@ export function registerCredentialTools(
           .describe("Set to true to actually update the secure parameter"),
       }),
     },
-    async ({ name, secureParam, description, confirm }) => {
-      try {
-        if (!confirm) {
-          const param =
-            await context.odataClient.getEntity<SecureParameter>(
-              buildSecureParameterPath(name)
-            );
-          const lines: string[] = [];
-          lines.push("Secure parameter to update:");
-          lines.push("");
-          lines.push(formatSecureParameterDetail(param));
-          lines.push("");
-          lines.push("Proposed changes:");
-          if (secureParam !== undefined) lines.push("  SecureParam: ***");
-          if (description !== undefined)
-            lines.push(
-              `  Description: ${param.Description} -> ${description}`
-            );
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {};
-        if (secureParam !== undefined) body.SecureParam = secureParam;
-        if (description !== undefined) body.Description = description;
-        await context.odataClient.put(buildSecureParameterPath(name), body);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Secure parameter '${name}' updated successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ name, secureParam, description, confirm }) => {
+      if (!confirm) {
+        const param =
+          await context.odataClient.getEntity<SecureParameter>(
+            buildSecureParameterPath(name)
+          );
+        const lines: string[] = [];
+        lines.push("Secure parameter to update:");
+        lines.push("");
+        lines.push(formatSecureParameterDetail(param));
+        lines.push("");
+        lines.push("Proposed changes:");
+        if (secureParam !== undefined) lines.push("  SecureParam: ***");
+        if (description !== undefined)
+          lines.push(
+            `  Description: ${param.Description} -> ${description}`
+          );
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {};
+      if (secureParam !== undefined) body.SecureParam = secureParam;
+      if (description !== undefined) body.Description = description;
+      await context.odataClient.put(buildSecureParameterPath(name), body);
+      return `Secure parameter '${name}' updated successfully.`;
+    })
   );
 
   // @api GET /SecureParameters('{Name}')
@@ -608,41 +462,18 @@ export function registerCredentialTools(
           .describe("Set to true to actually delete the secure parameter"),
       }),
     },
-    async ({ name, confirm }) => {
-      try {
-        if (!confirm) {
-          const param =
-            await context.odataClient.getEntity<SecureParameter>(
-              buildSecureParameterPath(name)
-            );
-          const preview = formatSecureParameterDetail(param);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Secure parameter to delete:\n\n${preview}\n\nSet confirm to true to proceed.`,
-              },
-            ],
-          };
-        }
-        await context.odataClient.delete(buildSecureParameterPath(name));
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Secure parameter '${name}' deleted successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ name, confirm }) => {
+      if (!confirm) {
+        const param =
+          await context.odataClient.getEntity<SecureParameter>(
+            buildSecureParameterPath(name)
+          );
+        const preview = formatSecureParameterDetail(param);
+        return `Secure parameter to delete:\n\n${preview}\n\nSet confirm to true to proceed.`;
       }
-    }
+      await context.odataClient.delete(buildSecureParameterPath(name));
+      return `Secure parameter '${name}' deleted successfully.`;
+    })
   );
 
   // ─── OAuth2 Client Credentials ──────────────────────────────────────
@@ -660,40 +491,22 @@ export function registerCredentialTools(
           .describe("Set to true to expand CustomParameters"),
       }),
     },
-    async ({ expandCustomParameters }) => {
-      try {
-        const params: Record<string, string | number | undefined> = {};
-        if (expandCustomParameters) params.$expand = "CustomParameters";
-        const credentials =
-          await context.odataClient.getCollection<OAuth2ClientCredential>(
-            buildOAuth2CredentialsPath(),
-            params
-          );
-        if (credentials.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No OAuth2 client credentials found.",
-              },
-            ],
-          };
-        }
-        const text = credentials
-          .map(formatOAuth2CredentialSummary)
-          .join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ expandCustomParameters }) => {
+      const params: Record<string, string | number | undefined> = {};
+      if (expandCustomParameters) params.$expand = "CustomParameters";
+      const credentials =
+        await context.odataClient.getCollection<OAuth2ClientCredential>(
+          buildOAuth2CredentialsPath(),
+          params
+        );
+      if (credentials.length === 0) {
+        return "No OAuth2 client credentials found.";
       }
-    }
+      const text = credentials
+        .map(formatOAuth2CredentialSummary)
+        .join("\n\n");
+      return text;
+    })
   );
 
   // @api GET /OAuth2ClientCredentials('{Name}')
@@ -710,28 +523,17 @@ export function registerCredentialTools(
           .describe("Set to true to expand CustomParameters"),
       }),
     },
-    async ({ name, expandCustomParameters }) => {
-      try {
-        const params: Record<string, string | number | undefined> = {};
-        if (expandCustomParameters) params.$expand = "CustomParameters";
-        const credential =
-          await context.odataClient.getEntity<OAuth2ClientCredential>(
-            buildOAuth2CredentialPath(name),
-            params
-          );
-        const text = formatOAuth2CredentialDetail(credential);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ name, expandCustomParameters }) => {
+      const params: Record<string, string | number | undefined> = {};
+      if (expandCustomParameters) params.$expand = "CustomParameters";
+      const credential =
+        await context.odataClient.getEntity<OAuth2ClientCredential>(
+          buildOAuth2CredentialPath(name),
+          params
+        );
+      const text = formatOAuth2CredentialDetail(credential);
+      return text;
+    })
   );
 
   // @api POST /OAuth2ClientCredentials
@@ -768,7 +570,7 @@ export function registerCredentialTools(
           .describe("Set to true to actually create the credential"),
       }),
     },
-    async ({
+    textTool(async ({
       name,
       tokenServiceUrl,
       clientId,
@@ -781,60 +583,42 @@ export function registerCredentialTools(
       description,
       confirm,
     }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("OAuth2 client credential to create:");
-          lines.push("");
-          lines.push(`Name: ${name}`);
-          lines.push(`TokenServiceUrl: ${tokenServiceUrl}`);
-          lines.push(`ClientId: ${clientId}`);
-          lines.push(
-            `ClientAuthentication: ${clientAuthentication ?? "n/a"}`
-          );
-          lines.push(`Scope: ${scope ?? "n/a"}`);
-          lines.push(`ScopeContentType: ${scopeContentType ?? "n/a"}`);
-          lines.push(`Resource: ${resource ?? "n/a"}`);
-          lines.push(`Audience: ${audience ?? "n/a"}`);
-          lines.push(`Description: ${description ?? "n/a"}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {
-          Name: name,
-          TokenServiceUrl: tokenServiceUrl,
-          ClientId: clientId,
-          ClientSecret: clientSecret,
-        };
-        if (clientAuthentication !== undefined)
-          body.ClientAuthentication = clientAuthentication;
-        if (scope !== undefined) body.Scope = scope;
-        if (scopeContentType !== undefined)
-          body.ScopeContentType = scopeContentType;
-        if (resource !== undefined) body.Resource = resource;
-        if (audience !== undefined) body.Audience = audience;
-        if (description !== undefined) body.Description = description;
-        await context.odataClient.post(buildOAuth2CredentialsPath(), body);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `OAuth2 client credential '${name}' created successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("OAuth2 client credential to create:");
+        lines.push("");
+        lines.push(`Name: ${name}`);
+        lines.push(`TokenServiceUrl: ${tokenServiceUrl}`);
+        lines.push(`ClientId: ${clientId}`);
+        lines.push(
+          `ClientAuthentication: ${clientAuthentication ?? "n/a"}`
+        );
+        lines.push(`Scope: ${scope ?? "n/a"}`);
+        lines.push(`ScopeContentType: ${scopeContentType ?? "n/a"}`);
+        lines.push(`Resource: ${resource ?? "n/a"}`);
+        lines.push(`Audience: ${audience ?? "n/a"}`);
+        lines.push(`Description: ${description ?? "n/a"}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {
+        Name: name,
+        TokenServiceUrl: tokenServiceUrl,
+        ClientId: clientId,
+        ClientSecret: clientSecret,
+      };
+      if (clientAuthentication !== undefined)
+        body.ClientAuthentication = clientAuthentication;
+      if (scope !== undefined) body.Scope = scope;
+      if (scopeContentType !== undefined)
+        body.ScopeContentType = scopeContentType;
+      if (resource !== undefined) body.Resource = resource;
+      if (audience !== undefined) body.Audience = audience;
+      if (description !== undefined) body.Description = description;
+      await context.odataClient.post(buildOAuth2CredentialsPath(), body);
+      return `OAuth2 client credential '${name}' created successfully.`;
+    })
   );
 
   // @api GET /OAuth2ClientCredentials('{Name}')
@@ -876,7 +660,7 @@ export function registerCredentialTools(
           .describe("Set to true to actually update the credential"),
       }),
     },
-    async ({
+    textTool(async ({
       name,
       tokenServiceUrl,
       clientId,
@@ -889,89 +673,71 @@ export function registerCredentialTools(
       description,
       confirm,
     }) => {
-      try {
-        if (!confirm) {
-          const credential =
-            await context.odataClient.getEntity<OAuth2ClientCredential>(
-              buildOAuth2CredentialPath(name)
-            );
-          const lines: string[] = [];
-          lines.push("OAuth2 client credential to update:");
-          lines.push("");
-          lines.push(formatOAuth2CredentialDetail(credential));
-          lines.push("");
-          lines.push("Proposed changes:");
-          if (tokenServiceUrl !== undefined)
-            lines.push(
-              `  TokenServiceUrl: ${credential.TokenServiceUrl} -> ${tokenServiceUrl}`
-            );
-          if (clientId !== undefined)
-            lines.push(
-              `  ClientId: ${credential.ClientId} -> ${clientId}`
-            );
-          if (clientSecret !== undefined) lines.push("  ClientSecret: ***");
-          if (clientAuthentication !== undefined)
-            lines.push(
-              `  ClientAuthentication: ${credential.ClientAuthentication} -> ${clientAuthentication}`
-            );
-          if (scope !== undefined)
-            lines.push(`  Scope: ${credential.Scope} -> ${scope}`);
-          if (scopeContentType !== undefined)
-            lines.push(
-              `  ScopeContentType: ${credential.ScopeContentType} -> ${scopeContentType}`
-            );
-          if (resource !== undefined)
-            lines.push(
-              `  Resource: ${credential.Resource} -> ${resource}`
-            );
-          if (audience !== undefined)
-            lines.push(
-              `  Audience: ${credential.Audience} -> ${audience}`
-            );
-          if (description !== undefined)
-            lines.push(
-              `  Description: ${credential.Description} -> ${description}`
-            );
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {};
+      if (!confirm) {
+        const credential =
+          await context.odataClient.getEntity<OAuth2ClientCredential>(
+            buildOAuth2CredentialPath(name)
+          );
+        const lines: string[] = [];
+        lines.push("OAuth2 client credential to update:");
+        lines.push("");
+        lines.push(formatOAuth2CredentialDetail(credential));
+        lines.push("");
+        lines.push("Proposed changes:");
         if (tokenServiceUrl !== undefined)
-          body.TokenServiceUrl = tokenServiceUrl;
-        if (clientId !== undefined) body.ClientId = clientId;
-        if (clientSecret !== undefined) body.ClientSecret = clientSecret;
+          lines.push(
+            `  TokenServiceUrl: ${credential.TokenServiceUrl} -> ${tokenServiceUrl}`
+          );
+        if (clientId !== undefined)
+          lines.push(
+            `  ClientId: ${credential.ClientId} -> ${clientId}`
+          );
+        if (clientSecret !== undefined) lines.push("  ClientSecret: ***");
         if (clientAuthentication !== undefined)
-          body.ClientAuthentication = clientAuthentication;
-        if (scope !== undefined) body.Scope = scope;
+          lines.push(
+            `  ClientAuthentication: ${credential.ClientAuthentication} -> ${clientAuthentication}`
+          );
+        if (scope !== undefined)
+          lines.push(`  Scope: ${credential.Scope} -> ${scope}`);
         if (scopeContentType !== undefined)
-          body.ScopeContentType = scopeContentType;
-        if (resource !== undefined) body.Resource = resource;
-        if (audience !== undefined) body.Audience = audience;
-        if (description !== undefined) body.Description = description;
-        await context.odataClient.put(
-          buildOAuth2CredentialPath(name),
-          body
-        );
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `OAuth2 client credential '${name}' updated successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+          lines.push(
+            `  ScopeContentType: ${credential.ScopeContentType} -> ${scopeContentType}`
+          );
+        if (resource !== undefined)
+          lines.push(
+            `  Resource: ${credential.Resource} -> ${resource}`
+          );
+        if (audience !== undefined)
+          lines.push(
+            `  Audience: ${credential.Audience} -> ${audience}`
+          );
+        if (description !== undefined)
+          lines.push(
+            `  Description: ${credential.Description} -> ${description}`
+          );
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {};
+      if (tokenServiceUrl !== undefined)
+        body.TokenServiceUrl = tokenServiceUrl;
+      if (clientId !== undefined) body.ClientId = clientId;
+      if (clientSecret !== undefined) body.ClientSecret = clientSecret;
+      if (clientAuthentication !== undefined)
+        body.ClientAuthentication = clientAuthentication;
+      if (scope !== undefined) body.Scope = scope;
+      if (scopeContentType !== undefined)
+        body.ScopeContentType = scopeContentType;
+      if (resource !== undefined) body.Resource = resource;
+      if (audience !== undefined) body.Audience = audience;
+      if (description !== undefined) body.Description = description;
+      await context.odataClient.put(
+        buildOAuth2CredentialPath(name),
+        body
+      );
+      return `OAuth2 client credential '${name}' updated successfully.`;
+    })
   );
 
   // @api GET /OAuth2ClientCredentials('{Name}')
@@ -989,40 +755,17 @@ export function registerCredentialTools(
           .describe("Set to true to actually delete the credential"),
       }),
     },
-    async ({ name, confirm }) => {
-      try {
-        if (!confirm) {
-          const credential =
-            await context.odataClient.getEntity<OAuth2ClientCredential>(
-              buildOAuth2CredentialPath(name)
-            );
-          const preview = formatOAuth2CredentialDetail(credential);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `OAuth2 client credential to delete:\n\n${preview}\n\nSet confirm to true to proceed.`,
-              },
-            ],
-          };
-        }
-        await context.odataClient.delete(buildOAuth2CredentialPath(name));
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `OAuth2 client credential '${name}' deleted successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ name, confirm }) => {
+      if (!confirm) {
+        const credential =
+          await context.odataClient.getEntity<OAuth2ClientCredential>(
+            buildOAuth2CredentialPath(name)
+          );
+        const preview = formatOAuth2CredentialDetail(credential);
+        return `OAuth2 client credential to delete:\n\n${preview}\n\nSet confirm to true to proceed.`;
       }
-    }
+      await context.odataClient.delete(buildOAuth2CredentialPath(name));
+      return `OAuth2 client credential '${name}' deleted successfully.`;
+    })
   );
 }

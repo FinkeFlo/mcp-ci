@@ -1,6 +1,7 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext, Module } from "../../core/types.js";
+import { textTool } from "../../core/tool.js";
 
 export const tenantModule: Module = {
   name: "tenant",
@@ -13,28 +14,12 @@ export const tenantModule: Module = {
           "Show the currently active SAP CPI tenant and list all available tenants",
         inputSchema: z.object({}),
       },
-      async () => {
-        try {
-          const active = context.tenantManager.getActiveTenantKey();
-          const all = context.tenantManager.listTenants();
-          const tenant = context.tenantManager.getActiveTenant();
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Active tenant: ${active} (${tenant.name})\nAPI URL: ${tenant.apiUrl}\nAvailable tenants: ${all.join(", ")}`,
-              },
-            ],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [
-              { type: "text" as const, text: (error as Error).message },
-            ],
-          };
-        }
-      }
+      textTool(async () => {
+        const active = context.tenantManager.getActiveTenantKey();
+        const all = context.tenantManager.listTenants();
+        const tenant = context.tenantManager.getActiveTenant();
+        return `Active tenant: ${active} (${tenant.name})\nAPI URL: ${tenant.apiUrl}\nAvailable tenants: ${all.join(", ")}`;
+      })
     );
 
     // @api none
@@ -50,27 +35,11 @@ export const tenantModule: Module = {
             ),
         }),
       },
-      async ({ tenant }) => {
-        try {
-          context.tenantManager.setActiveTenant(tenant);
-          const active = context.tenantManager.getActiveTenant();
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Switched to tenant: ${tenant} (${active.name})\nAPI URL: ${active.apiUrl}`,
-              },
-            ],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [
-              { type: "text" as const, text: (error as Error).message },
-            ],
-          };
-        }
-      }
+      textTool(async ({ tenant }) => {
+        context.tenantManager.setActiveTenant(tenant);
+        const active = context.tenantManager.getActiveTenant();
+        return `Switched to tenant: ${tenant} (${active.name})\nAPI URL: ${active.apiUrl}`;
+      })
     );
   },
 };

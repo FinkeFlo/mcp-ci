@@ -7,6 +7,7 @@ const MPL_SELECT = [
   "ApplicationMessageId",
   "IntegrationFlowName",
   "Status",
+  "CustomStatus",
   "LogLevel",
   "Sender",
   "Receiver",
@@ -18,6 +19,7 @@ const MPL_SELECT = [
 
 export interface ListMessagesFilters {
   status?: string;
+  customStatus?: string;
   flowName?: string;
   from?: string;
   to?: string;
@@ -32,6 +34,8 @@ export function buildListMessagesParams(
 ): ODataParams {
   const conditions: string[] = [];
   if (filters.status) conditions.push(`Status eq '${escapeOData(filters.status)}'`);
+  if (filters.customStatus)
+    conditions.push(`CustomStatus eq '${escapeOData(filters.customStatus)}'`);
   if (filters.flowName)
     conditions.push(`IntegrationFlowName eq '${escapeOData(filters.flowName)}'`);
   if (filters.from) conditions.push(`LogEnd ge datetime'${stripMilliseconds(filters.from)}'`);
@@ -66,6 +70,8 @@ export function buildCountParams(
 ): ODataParams {
   const conditions: string[] = [];
   if (filters.status) conditions.push(`Status eq '${escapeOData(filters.status)}'`);
+  if (filters.customStatus)
+    conditions.push(`CustomStatus eq '${escapeOData(filters.customStatus)}'`);
   if (filters.flowName)
     conditions.push(`IntegrationFlowName eq '${escapeOData(filters.flowName)}'`);
   if (filters.from) conditions.push(`LogEnd ge datetime'${stripMilliseconds(filters.from)}'`);
@@ -90,21 +96,56 @@ export function buildCountParams(
   };
 }
 
+export type AggregateField =
+  | "flowName"
+  | "status"
+  | "customStatus"
+  | "sender"
+  | "receiver";
+
+export const AGGREGATE_FIELD_TO_ODATA: Record<AggregateField, string> = {
+  flowName: "IntegrationFlowName",
+  status: "Status",
+  customStatus: "CustomStatus",
+  sender: "Sender",
+  receiver: "Receiver",
+};
+
+export function buildAggregateParams(
+  filters: Omit<ListMessagesFilters, "top">,
+  groupBy: AggregateField,
+  top: number,
+  skip: number
+): ODataParams {
+  return {
+    ...buildCountParams(filters),
+    $select: AGGREGATE_FIELD_TO_ODATA[groupBy],
+    $orderby: "LogEnd desc",
+    $top: top,
+    $skip: skip,
+  };
+}
+
 export function buildErrorInformationPath(messageGuid: string): string {
   return `/api/v1/MessageProcessingLogs('${messageGuid}')/ErrorInformation`;
 }
 
 export function buildGetErrorsParams(filters: {
   from?: string;
+  customStatus?: string;
 }): ODataParams {
   const from = stripMilliseconds(
     filters.from ?? new Date(Date.now() - 3600_000).toISOString()
   );
 
+  const conditions = [`Status eq 'FAILED'`, `LogEnd ge datetime'${from}'`];
+  if (filters.customStatus)
+    conditions.push(`CustomStatus eq '${escapeOData(filters.customStatus)}'`);
+
   return {
     $select: MPL_SELECT,
     $orderby: "LogEnd desc",
     $top: 200,
-    $filter: `Status eq 'FAILED' and LogEnd ge datetime'${from}'`,
+    $filter: conditions.join(" and "),
   };
 }

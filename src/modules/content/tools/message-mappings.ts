@@ -1,6 +1,7 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type { MessageMappingDesigntimeArtifact } from "../types.js";
 import { escapeOData } from "../../../core/odata-utils.js";
 import {
@@ -36,35 +37,17 @@ export function registerMessageMappingTools(
         "List message mapping designtime artifacts on the active SAP Cloud Integration tenant.",
       inputSchema: z.object({}),
     },
-    async () => {
-      try {
-        const mappings =
-          await context.odataClient.getCollection<MessageMappingDesigntimeArtifact>(
-            buildMessageMappingsPath()
-          );
-        if (mappings.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No message mappings found.",
-              },
-            ],
-          };
-        }
-        const text = mappings.map(formatMessageMappingSummary).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async () => {
+      const mappings =
+        await context.odataClient.getCollection<MessageMappingDesigntimeArtifact>(
+          buildMessageMappingsPath()
+        );
+      if (mappings.length === 0) {
+        return "No message mappings found.";
       }
-    }
+      const text = mappings.map(formatMessageMappingSummary).join("\n\n");
+      return text;
+    })
   );
 
   // 2. get_message_mapping
@@ -82,25 +65,14 @@ export function registerMessageMappingTools(
           .describe("The artifact version (default: 'active')"),
       }),
     },
-    async ({ id, version }) => {
-      try {
-        const mm =
-          await context.odataClient.getEntity<MessageMappingDesigntimeArtifact>(
-            buildMessageMappingPath(id, version ?? "active")
-          );
-        const text = formatMessageMappingSummary(mm);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id, version }) => {
+      const mm =
+        await context.odataClient.getEntity<MessageMappingDesigntimeArtifact>(
+          buildMessageMappingPath(id, version ?? "active")
+        );
+      const text = formatMessageMappingSummary(mm);
+      return text;
+    })
   );
 
   // 3. create_message_mapping
@@ -128,51 +100,33 @@ export function registerMessageMappingTools(
           .describe("Set to true to actually create the message mapping"),
       }),
     },
-    async ({ id, name, packageId, description, artifactContent, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Message mapping to create:");
-          lines.push("");
-          lines.push(`Id: ${id}`);
-          lines.push(`Name: ${name}`);
-          lines.push(`PackageId: ${packageId}`);
-          lines.push(`Description: ${description ?? "n/a"}`);
-          lines.push(
-            `ArtifactContent: ${artifactContent ? "(provided)" : "n/a"}`
-          );
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {
-          Id: id,
-          Name: name,
-          PackageId: packageId,
-        };
-        if (description !== undefined) body.Description = description;
-        if (artifactContent !== undefined)
-          body.ArtifactContent = artifactContent;
-        await context.odataClient.post(buildMessageMappingsPath(), body);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Message mapping '${id}' created successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, name, packageId, description, artifactContent, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Message mapping to create:");
+        lines.push("");
+        lines.push(`Id: ${id}`);
+        lines.push(`Name: ${name}`);
+        lines.push(`PackageId: ${packageId}`);
+        lines.push(`Description: ${description ?? "n/a"}`);
+        lines.push(
+          `ArtifactContent: ${artifactContent ? "(provided)" : "n/a"}`
+        );
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {
+        Id: id,
+        Name: name,
+        PackageId: packageId,
+      };
+      if (description !== undefined) body.Description = description;
+      if (artifactContent !== undefined)
+        body.ArtifactContent = artifactContent;
+      await context.odataClient.post(buildMessageMappingsPath(), body);
+      return `Message mapping '${id}' created successfully.`;
+    })
   );
 
   // 4. update_message_mapping
@@ -201,57 +155,39 @@ export function registerMessageMappingTools(
           .describe("Set to true to actually update the message mapping"),
       }),
     },
-    async ({ id, version, name, description, artifactContent, confirm }) => {
-      try {
-        if (!confirm) {
-          const mm =
-            await context.odataClient.getEntity<MessageMappingDesigntimeArtifact>(
-              buildMessageMappingPath(id, version)
-            );
-          const lines: string[] = [];
-          lines.push("Message mapping to update:");
-          lines.push("");
-          lines.push(formatMessageMappingSummary(mm));
-          lines.push("");
-          lines.push("Proposed changes:");
-          if (name !== undefined)
-            lines.push(`  Name: ${mm.Name} -> ${name}`);
-          if (description !== undefined)
-            lines.push(`  Description: ${mm.Description} -> ${description}`);
-          if (artifactContent !== undefined)
-            lines.push(`  ArtifactContent: (new content provided)`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {};
-        if (name !== undefined) body.Name = name;
-        if (description !== undefined) body.Description = description;
+    textTool(async ({ id, version, name, description, artifactContent, confirm }) => {
+      if (!confirm) {
+        const mm =
+          await context.odataClient.getEntity<MessageMappingDesigntimeArtifact>(
+            buildMessageMappingPath(id, version)
+          );
+        const lines: string[] = [];
+        lines.push("Message mapping to update:");
+        lines.push("");
+        lines.push(formatMessageMappingSummary(mm));
+        lines.push("");
+        lines.push("Proposed changes:");
+        if (name !== undefined)
+          lines.push(`  Name: ${mm.Name} -> ${name}`);
+        if (description !== undefined)
+          lines.push(`  Description: ${mm.Description} -> ${description}`);
         if (artifactContent !== undefined)
-          body.ArtifactContent = artifactContent;
-        await context.odataClient.put(
-          buildMessageMappingPath(id, version),
-          body
-        );
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Message mapping '${id}' updated successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+          lines.push(`  ArtifactContent: (new content provided)`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {};
+      if (name !== undefined) body.Name = name;
+      if (description !== undefined) body.Description = description;
+      if (artifactContent !== undefined)
+        body.ArtifactContent = artifactContent;
+      await context.odataClient.put(
+        buildMessageMappingPath(id, version),
+        body
+      );
+      return `Message mapping '${id}' updated successfully.`;
+    })
   );
 
   // 5. delete_message_mapping
@@ -271,41 +207,18 @@ export function registerMessageMappingTools(
           .describe("Set to true to actually delete the message mapping"),
       }),
     },
-    async ({ id, version, confirm }) => {
-      try {
-        if (!confirm) {
-          const mm =
-            await context.odataClient.getEntity<MessageMappingDesigntimeArtifact>(
-              buildMessageMappingPath(id, version)
-            );
-          const preview = formatMessageMappingSummary(mm);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Message mapping to delete:\n\n${preview}\n\nSet confirm to true to proceed.`,
-              },
-            ],
-          };
-        }
-        await context.odataClient.delete(buildMessageMappingPath(id, version));
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Message mapping '${id}' deleted successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, version, confirm }) => {
+      if (!confirm) {
+        const mm =
+          await context.odataClient.getEntity<MessageMappingDesigntimeArtifact>(
+            buildMessageMappingPath(id, version)
+          );
+        const preview = formatMessageMappingSummary(mm);
+        return `Message mapping to delete:\n\n${preview}\n\nSet confirm to true to proceed.`;
       }
-    }
+      await context.odataClient.delete(buildMessageMappingPath(id, version));
+      return `Message mapping '${id}' deleted successfully.`;
+    })
   );
 
   // 6. deploy_message_mapping
@@ -324,39 +237,21 @@ export function registerMessageMappingTools(
           .describe("Set to true to actually deploy the message mapping"),
       }),
     },
-    async ({ id, version, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Message mapping to deploy:");
-          lines.push("");
-          lines.push(`Id: ${id}`);
-          lines.push(`Version: ${version}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const path = `${buildDeployMessageMappingPath()}?Id='${escapeOData(id)}'&Version='${escapeOData(version)}'`;
-        await context.odataClient.post(path);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Message mapping '${id}' deployment triggered successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, version, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Message mapping to deploy:");
+        lines.push("");
+        lines.push(`Id: ${id}`);
+        lines.push(`Version: ${version}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const path = `${buildDeployMessageMappingPath()}?Id='${escapeOData(id)}'&Version='${escapeOData(version)}'`;
+      await context.odataClient.post(path);
+      return `Message mapping '${id}' deployment triggered successfully.`;
+    })
   );
 
   // 7. save_message_mapping_version
@@ -378,40 +273,22 @@ export function registerMessageMappingTools(
           .describe("Set to true to actually save the new version"),
       }),
     },
-    async ({ id, version, newVersion, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Message mapping version to save:");
-          lines.push("");
-          lines.push(`Id: ${id}`);
-          lines.push(`Current Version: ${version}`);
-          lines.push(`New Version: ${newVersion}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const path = `${buildSaveMessageMappingVersionPath()}?Id='${escapeOData(id)}'&Version='${escapeOData(version)}'&SaveAsVersion='${escapeOData(newVersion)}'`;
-        await context.odataClient.post(path);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Message mapping '${id}' saved as version '${newVersion}' successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, version, newVersion, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Message mapping version to save:");
+        lines.push("");
+        lines.push(`Id: ${id}`);
+        lines.push(`Current Version: ${version}`);
+        lines.push(`New Version: ${newVersion}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const path = `${buildSaveMessageMappingVersionPath()}?Id='${escapeOData(id)}'&Version='${escapeOData(version)}'&SaveAsVersion='${escapeOData(newVersion)}'`;
+      await context.odataClient.post(path);
+      return `Message mapping '${id}' saved as version '${newVersion}' successfully.`;
+    })
   );
 
   // 8. download_message_mapping
@@ -429,27 +306,11 @@ export function registerMessageMappingTools(
           .describe("The artifact version (default: 'active')"),
       }),
     },
-    async ({ id, version }) => {
-      try {
-        const content = await context.odataClient.getValue(
-          buildMessageMappingValuePath(id, version ?? "active")
-        );
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Message mapping '${id}' downloaded successfully. Content length: ${content.length} bytes (binary ZIP data).`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id, version }) => {
+      const content = await context.odataClient.getValue(
+        buildMessageMappingValuePath(id, version ?? "active")
+      );
+      return `Message mapping '${id}' downloaded successfully. Content length: ${content.length} bytes (binary ZIP data).`;
+    })
   );
 }
