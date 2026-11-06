@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type {
   MessageTypeDesigntimeArtifact,
   DataTypeDesigntimeArtifact,
@@ -74,37 +75,22 @@ function registerTypeTools(
           .describe("Number of results to skip (for pagination)"),
       }),
     },
-    async ({ filter, top, skip }) => {
-      try {
-        const artifacts =
-          await context.odataClient.getCollection<TypeArtifact>(
-            buildTypeArtifactsPath(entityName),
-            {
-              $filter: filter,
-              $top: top,
-              $skip: skip,
-            }
-          );
-        if (artifacts.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: `No ${displayName}s found.` },
-            ],
-          };
-        }
-        const text = artifacts.map(formatTypeArtifactList).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ filter, top, skip }) => {
+      const artifacts =
+        await context.odataClient.getCollection<TypeArtifact>(
+          buildTypeArtifactsPath(entityName),
+          {
+            $filter: filter,
+            $top: top,
+            $skip: skip,
+          }
+        );
+      if (artifacts.length === 0) {
+        return `No ${displayName}s found.`;
       }
-    }
+      const text = artifacts.map(formatTypeArtifactList).join("\n\n");
+      return text;
+    })
   );
 
   // get tool
@@ -124,25 +110,14 @@ function registerTypeTools(
           .describe("The artifact version (default: 'active')"),
       }),
     },
-    async ({ id, version }) => {
-      try {
-        const artifact =
-          await context.odataClient.getEntity<TypeArtifact>(
-            buildTypeArtifactPath(entityName, id, version ?? "active")
-          );
-        const text = formatTypeArtifactDetail(artifact);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id, version }) => {
+      const artifact =
+        await context.odataClient.getEntity<TypeArtifact>(
+          buildTypeArtifactPath(entityName, id, version ?? "active")
+        );
+      const text = formatTypeArtifactDetail(artifact);
+      return text;
+    })
   );
 
   // download tool
@@ -162,28 +137,12 @@ function registerTypeTools(
           .describe("The artifact version (default: 'active')"),
       }),
     },
-    async ({ id, version }) => {
-      try {
-        const content = await context.odataClient.getValue(
-          buildTypeArtifactValuePath(entityName, id, version ?? "active")
-        );
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Artifact '${id}' downloaded successfully. Content length: ${content.length} bytes (binary ZIP data).`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id, version }) => {
+      const content = await context.odataClient.getValue(
+        buildTypeArtifactValuePath(entityName, id, version ?? "active")
+      );
+      return `Artifact '${id}' downloaded successfully. Content length: ${content.length} bytes (binary ZIP data).`;
+    })
   );
 }
 

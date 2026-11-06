@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type {
   ValueMappingDesigntimeArtifact,
   ValMapSchema,
@@ -52,35 +53,17 @@ export function registerValueMappingTools(
         "List value mapping designtime artifacts on the active SAP Cloud Integration tenant.",
       inputSchema: z.object({}),
     },
-    async () => {
-      try {
-        const mappings =
-          await context.odataClient.getCollection<ValueMappingDesigntimeArtifact>(
-            buildValueMappingsPath()
-          );
-        if (mappings.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No value mappings found.",
-              },
-            ],
-          };
-        }
-        const text = mappings.map(formatValueMappingSummary).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async () => {
+      const mappings =
+        await context.odataClient.getCollection<ValueMappingDesigntimeArtifact>(
+          buildValueMappingsPath()
+        );
+      if (mappings.length === 0) {
+        return "No value mappings found.";
       }
-    }
+      const text = mappings.map(formatValueMappingSummary).join("\n\n");
+      return text;
+    })
   );
 
   // 2. get_value_mapping
@@ -97,25 +80,14 @@ export function registerValueMappingTools(
           .describe("The artifact version (default: 'active')"),
       }),
     },
-    async ({ id, version }) => {
-      try {
-        const vm =
-          await context.odataClient.getEntity<ValueMappingDesigntimeArtifact>(
-            buildValueMappingPath(id, version ?? "active")
-          );
-        const text = formatValueMappingSummary(vm);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id, version }) => {
+      const vm =
+        await context.odataClient.getEntity<ValueMappingDesigntimeArtifact>(
+          buildValueMappingPath(id, version ?? "active")
+        );
+      const text = formatValueMappingSummary(vm);
+      return text;
+    })
   );
 
   // 3. create_value_mapping
@@ -142,51 +114,33 @@ export function registerValueMappingTools(
           .describe("Set to true to actually create the value mapping"),
       }),
     },
-    async ({ id, name, packageId, description, artifactContent, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Value mapping to create:");
-          lines.push("");
-          lines.push(`Id: ${id}`);
-          lines.push(`Name: ${name}`);
-          lines.push(`PackageId: ${packageId}`);
-          lines.push(`Description: ${description ?? "n/a"}`);
-          lines.push(
-            `ArtifactContent: ${artifactContent ? "(provided)" : "n/a"}`
-          );
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const body: Record<string, unknown> = {
-          Id: id,
-          Name: name,
-          PackageId: packageId,
-        };
-        if (description !== undefined) body.Description = description;
-        if (artifactContent !== undefined)
-          body.ArtifactContent = artifactContent;
-        await context.odataClient.post(buildValueMappingsPath(), body);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Value mapping '${id}' created successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, name, packageId, description, artifactContent, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Value mapping to create:");
+        lines.push("");
+        lines.push(`Id: ${id}`);
+        lines.push(`Name: ${name}`);
+        lines.push(`PackageId: ${packageId}`);
+        lines.push(`Description: ${description ?? "n/a"}`);
+        lines.push(
+          `ArtifactContent: ${artifactContent ? "(provided)" : "n/a"}`
+        );
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const body: Record<string, unknown> = {
+        Id: id,
+        Name: name,
+        PackageId: packageId,
+      };
+      if (description !== undefined) body.Description = description;
+      if (artifactContent !== undefined)
+        body.ArtifactContent = artifactContent;
+      await context.odataClient.post(buildValueMappingsPath(), body);
+      return `Value mapping '${id}' created successfully.`;
+    })
   );
 
   // 4. delete_value_mapping
@@ -204,41 +158,18 @@ export function registerValueMappingTools(
           .describe("Set to true to actually delete the value mapping"),
       }),
     },
-    async ({ id, version, confirm }) => {
-      try {
-        if (!confirm) {
-          const vm =
-            await context.odataClient.getEntity<ValueMappingDesigntimeArtifact>(
-              buildValueMappingPath(id, version)
-            );
-          const preview = formatValueMappingSummary(vm);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Value mapping to delete:\n\n${preview}\n\nSet confirm to true to proceed.`,
-              },
-            ],
-          };
-        }
-        await context.odataClient.delete(buildValueMappingPath(id, version));
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Value mapping '${id}' deleted successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, version, confirm }) => {
+      if (!confirm) {
+        const vm =
+          await context.odataClient.getEntity<ValueMappingDesigntimeArtifact>(
+            buildValueMappingPath(id, version)
+          );
+        const preview = formatValueMappingSummary(vm);
+        return `Value mapping to delete:\n\n${preview}\n\nSet confirm to true to proceed.`;
       }
-    }
+      await context.odataClient.delete(buildValueMappingPath(id, version));
+      return `Value mapping '${id}' deleted successfully.`;
+    })
   );
 
   // 5. deploy_value_mapping
@@ -256,39 +187,21 @@ export function registerValueMappingTools(
           .describe("Set to true to actually deploy the value mapping"),
       }),
     },
-    async ({ id, version, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Value mapping to deploy:");
-          lines.push("");
-          lines.push(`Id: ${id}`);
-          lines.push(`Version: ${version}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const path = `${buildDeployValueMappingPath()}?Id='${escapeOData(id)}'&Version='${escapeOData(version)}'`;
-        await context.odataClient.post(path);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Value mapping '${id}' deployment triggered successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, version, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Value mapping to deploy:");
+        lines.push("");
+        lines.push(`Id: ${id}`);
+        lines.push(`Version: ${version}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const path = `${buildDeployValueMappingPath()}?Id='${escapeOData(id)}'&Version='${escapeOData(version)}'`;
+      await context.odataClient.post(path);
+      return `Value mapping '${id}' deployment triggered successfully.`;
+    })
   );
 
   // 6. save_value_mapping_version
@@ -309,40 +222,22 @@ export function registerValueMappingTools(
           .describe("Set to true to actually save the new version"),
       }),
     },
-    async ({ id, version, newVersion, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Value mapping version to save:");
-          lines.push("");
-          lines.push(`Id: ${id}`);
-          lines.push(`Current Version: ${version}`);
-          lines.push(`New Version: ${newVersion}`);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        const path = `${buildSaveValueMappingVersionPath()}?Id='${escapeOData(id)}'&Version='${escapeOData(version)}'&SaveAsVersion='${escapeOData(newVersion)}'`;
-        await context.odataClient.post(path);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Value mapping '${id}' saved as version '${newVersion}' successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, version, newVersion, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Value mapping version to save:");
+        lines.push("");
+        lines.push(`Id: ${id}`);
+        lines.push(`Current Version: ${version}`);
+        lines.push(`New Version: ${newVersion}`);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      const path = `${buildSaveValueMappingVersionPath()}?Id='${escapeOData(id)}'&Version='${escapeOData(version)}'&SaveAsVersion='${escapeOData(newVersion)}'`;
+      await context.odataClient.post(path);
+      return `Value mapping '${id}' saved as version '${newVersion}' successfully.`;
+    })
   );
 
   // 7. download_value_mapping
@@ -359,28 +254,12 @@ export function registerValueMappingTools(
           .describe("The artifact version (default: 'active')"),
       }),
     },
-    async ({ id, version }) => {
-      try {
-        const content = await context.odataClient.getValue(
-          buildValueMappingValuePath(id, version ?? "active")
-        );
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Value mapping '${id}' downloaded successfully. Content length: ${content.length} bytes (binary ZIP data).`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id, version }) => {
+      const content = await context.odataClient.getValue(
+        buildValueMappingValuePath(id, version ?? "active")
+      );
+      return `Value mapping '${id}' downloaded successfully. Content length: ${content.length} bytes (binary ZIP data).`;
+    })
   );
 
   // 8. get_value_mapping_schema
@@ -403,38 +282,20 @@ export function registerValueMappingTools(
           ),
       }),
     },
-    async ({ id, version, expand }) => {
-      try {
-        const params: Record<string, unknown> = {};
-        if (expand !== undefined) params.$expand = expand;
-        const schemas =
-          await context.odataClient.getCollection<ValMapSchema>(
-            buildValueMappingSchemaPath(id, version ?? "active"),
-            params
-          );
-        if (schemas.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No value mapping schemas found.",
-              },
-            ],
-          };
-        }
-        const text = schemas.map(formatValMapSchema).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, version, expand }) => {
+      const params: Record<string, unknown> = {};
+      if (expand !== undefined) params.$expand = expand;
+      const schemas =
+        await context.odataClient.getCollection<ValMapSchema>(
+          buildValueMappingSchemaPath(id, version ?? "active"),
+          params
+        );
+      if (schemas.length === 0) {
+        return "No value mapping schemas found.";
       }
-    }
+      const text = schemas.map(formatValMapSchema).join("\n\n");
+      return text;
+    })
   );
 
   // 9. upsert_value_maps
@@ -453,40 +314,22 @@ export function registerValueMappingTools(
           .describe("Set to true to actually execute the upsert"),
       }),
     },
-    async ({ body, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Value maps to upsert:");
-          lines.push("");
-          lines.push(body);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        await context.odataClient.post(
-          buildUpsertValMapsPath(),
-          JSON.parse(body)
-        );
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: "Value maps upserted successfully.",
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ body, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Value maps to upsert:");
+        lines.push("");
+        lines.push(body);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      await context.odataClient.post(
+        buildUpsertValMapsPath(),
+        JSON.parse(body)
+      );
+      return "Value maps upserted successfully.";
+    })
   );
 
   // 10. update_default_value_map
@@ -505,40 +348,22 @@ export function registerValueMappingTools(
           .describe("Set to true to actually execute the update"),
       }),
     },
-    async ({ body, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Default value map to update:");
-          lines.push("");
-          lines.push(body);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        await context.odataClient.post(
-          buildUpdateDefaultValMapPath(),
-          JSON.parse(body)
-        );
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: "Default value map updated successfully.",
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ body, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Default value map to update:");
+        lines.push("");
+        lines.push(body);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      await context.odataClient.post(
+        buildUpdateDefaultValMapPath(),
+        JSON.parse(body)
+      );
+      return "Default value map updated successfully.";
+    })
   );
 
   // 11. delete_value_maps
@@ -557,39 +382,21 @@ export function registerValueMappingTools(
           .describe("Set to true to actually execute the deletion"),
       }),
     },
-    async ({ body, confirm }) => {
-      try {
-        if (!confirm) {
-          const lines: string[] = [];
-          lines.push("Value maps to delete:");
-          lines.push("");
-          lines.push(body);
-          lines.push("");
-          lines.push("Set confirm to true to proceed.");
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        }
-        await context.odataClient.post(
-          buildDeleteValMapsPath(),
-          JSON.parse(body)
-        );
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: "Value maps deleted successfully.",
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ body, confirm }) => {
+      if (!confirm) {
+        const lines: string[] = [];
+        lines.push("Value maps to delete:");
+        lines.push("");
+        lines.push(body);
+        lines.push("");
+        lines.push("Set confirm to true to proceed.");
+        return lines.join("\n");
       }
-    }
+      await context.odataClient.post(
+        buildDeleteValMapsPath(),
+        JSON.parse(body)
+      );
+      return "Value maps deleted successfully.";
+    })
   );
 }

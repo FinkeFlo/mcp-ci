@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type {
   IntegrationDesigntimeArtifact,
   MessageMappingDesigntimeArtifact,
@@ -89,24 +90,13 @@ export function registerPackageArtifactTools(
           .describe("The artifact version (default: 'active')"),
       }),
     },
-    async ({ packageId, artifactId, version }) => {
-      try {
-        const artifact =
-          await context.odataClient.getEntity<IntegrationDesigntimeArtifact>(
-            buildPackageDesigntimeArtifactPath(packageId, artifactId, version ?? "active")
-          );
-        return {
-          content: [{ type: "text" as const, text: formatArtifact(artifact) }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ packageId, artifactId, version }) => {
+      const artifact =
+        await context.odataClient.getEntity<IntegrationDesigntimeArtifact>(
+          buildPackageDesigntimeArtifactPath(packageId, artifactId, version ?? "active")
+        );
+      return formatArtifact(artifact);
+    })
   );
 
   // 2. list_package_message_mappings
@@ -120,32 +110,17 @@ export function registerPackageArtifactTools(
         packageId: z.string().describe("The integration package ID"),
       }),
     },
-    async ({ packageId }) => {
-      try {
-        const mappings =
-          await context.odataClient.getCollection<MessageMappingDesigntimeArtifact>(
-            buildPackageMessageMappingsPath(packageId)
-          );
-        if (mappings.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No message mappings found." },
-            ],
-          };
-        }
-        const text = mappings.map(formatArtifact).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ packageId }) => {
+      const mappings =
+        await context.odataClient.getCollection<MessageMappingDesigntimeArtifact>(
+          buildPackageMessageMappingsPath(packageId)
+        );
+      if (mappings.length === 0) {
+        return "No message mappings found.";
       }
-    }
+      const text = mappings.map(formatArtifact).join("\n\n");
+      return text;
+    })
   );
 
   // 3. get_package_message_mapping
@@ -164,24 +139,13 @@ export function registerPackageArtifactTools(
           .describe("The artifact version (default: 'active')"),
       }),
     },
-    async ({ packageId, artifactId, version }) => {
-      try {
-        const mapping =
-          await context.odataClient.getEntity<MessageMappingDesigntimeArtifact>(
-            buildPackageMessageMappingPath(packageId, artifactId, version ?? "active")
-          );
-        return {
-          content: [{ type: "text" as const, text: formatArtifact(mapping) }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ packageId, artifactId, version }) => {
+      const mapping =
+        await context.odataClient.getEntity<MessageMappingDesigntimeArtifact>(
+          buildPackageMessageMappingPath(packageId, artifactId, version ?? "active")
+        );
+      return formatArtifact(mapping);
+    })
   );
 
   // 4. list_package_value_mappings
@@ -195,32 +159,17 @@ export function registerPackageArtifactTools(
         packageId: z.string().describe("The integration package ID"),
       }),
     },
-    async ({ packageId }) => {
-      try {
-        const mappings =
-          await context.odataClient.getCollection<ValueMappingDesigntimeArtifact>(
-            buildPackageValueMappingsPath(packageId)
-          );
-        if (mappings.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No value mappings found." },
-            ],
-          };
-        }
-        const text = mappings.map(formatValueMapping).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ packageId }) => {
+      const mappings =
+        await context.odataClient.getCollection<ValueMappingDesigntimeArtifact>(
+          buildPackageValueMappingsPath(packageId)
+        );
+      if (mappings.length === 0) {
+        return "No value mappings found.";
       }
-    }
+      const text = mappings.map(formatValueMapping).join("\n\n");
+      return text;
+    })
   );
 
   // 5. get_package_value_mapping
@@ -239,24 +188,13 @@ export function registerPackageArtifactTools(
           .describe("The artifact version (default: 'active')"),
       }),
     },
-    async ({ packageId, artifactId, version }) => {
-      try {
-        const mapping =
-          await context.odataClient.getEntity<ValueMappingDesigntimeArtifact>(
-            buildPackageValueMappingPath(packageId, artifactId, version ?? "active")
-          );
-        return {
-          content: [{ type: "text" as const, text: formatValueMapping(mapping) }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ packageId, artifactId, version }) => {
+      const mapping =
+        await context.odataClient.getEntity<ValueMappingDesigntimeArtifact>(
+          buildPackageValueMappingPath(packageId, artifactId, version ?? "active")
+        );
+      return formatValueMapping(mapping);
+    })
   );
 
   // 6. get_package_script_collection
@@ -275,24 +213,13 @@ export function registerPackageArtifactTools(
           .describe("The artifact version (default: 'active')"),
       }),
     },
-    async ({ packageId, artifactId, version }) => {
-      try {
-        const artifact =
-          await context.odataClient.getEntity<ScriptCollectionDesigntimeArtifact>(
-            buildPackageScriptCollectionPath(packageId, artifactId, version ?? "active")
-          );
-        return {
-          content: [{ type: "text" as const, text: formatArtifact(artifact) }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ packageId, artifactId, version }) => {
+      const artifact =
+        await context.odataClient.getEntity<ScriptCollectionDesigntimeArtifact>(
+          buildPackageScriptCollectionPath(packageId, artifactId, version ?? "active")
+        );
+      return formatArtifact(artifact);
+    })
   );
 
   // 7. get_package_custom_tags
@@ -306,32 +233,17 @@ export function registerPackageArtifactTools(
         packageId: z.string().describe("The integration package ID"),
       }),
     },
-    async ({ packageId }) => {
-      try {
-        const tags =
-          await context.odataClient.getCollection<PackageCustomTag>(
-            buildPackageCustomTagsPath(packageId)
-          );
-        if (tags.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No custom tags found." },
-            ],
-          };
-        }
-        const text = tags.map(formatCustomTag).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ packageId }) => {
+      const tags =
+        await context.odataClient.getCollection<PackageCustomTag>(
+          buildPackageCustomTagsPath(packageId)
+        );
+      if (tags.length === 0) {
+        return "No custom tags found.";
       }
-    }
+      const text = tags.map(formatCustomTag).join("\n\n");
+      return text;
+    })
   );
 
   // 8. list_package_message_types
@@ -345,32 +257,17 @@ export function registerPackageArtifactTools(
         packageId: z.string().describe("The integration package ID"),
       }),
     },
-    async ({ packageId }) => {
-      try {
-        const artifacts =
-          await context.odataClient.getCollection<MessageTypeDesigntimeArtifact>(
-            buildPackageMessageTypesPath(packageId)
-          );
-        if (artifacts.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No message types found." },
-            ],
-          };
-        }
-        const text = artifacts.map(formatTypeArtifact).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ packageId }) => {
+      const artifacts =
+        await context.odataClient.getCollection<MessageTypeDesigntimeArtifact>(
+          buildPackageMessageTypesPath(packageId)
+        );
+      if (artifacts.length === 0) {
+        return "No message types found.";
       }
-    }
+      const text = artifacts.map(formatTypeArtifact).join("\n\n");
+      return text;
+    })
   );
 
   // 9. list_package_fault_message_types
@@ -384,32 +281,17 @@ export function registerPackageArtifactTools(
         packageId: z.string().describe("The integration package ID"),
       }),
     },
-    async ({ packageId }) => {
-      try {
-        const artifacts =
-          await context.odataClient.getCollection<FaultMessageTypeDesigntimeArtifact>(
-            buildPackageFaultMessageTypesPath(packageId)
-          );
-        if (artifacts.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No fault message types found." },
-            ],
-          };
-        }
-        const text = artifacts.map(formatTypeArtifact).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ packageId }) => {
+      const artifacts =
+        await context.odataClient.getCollection<FaultMessageTypeDesigntimeArtifact>(
+          buildPackageFaultMessageTypesPath(packageId)
+        );
+      if (artifacts.length === 0) {
+        return "No fault message types found.";
       }
-    }
+      const text = artifacts.map(formatTypeArtifact).join("\n\n");
+      return text;
+    })
   );
 
   // 10. list_package_data_types
@@ -423,32 +305,17 @@ export function registerPackageArtifactTools(
         packageId: z.string().describe("The integration package ID"),
       }),
     },
-    async ({ packageId }) => {
-      try {
-        const artifacts =
-          await context.odataClient.getCollection<DataTypeDesigntimeArtifact>(
-            buildPackageDataTypesPath(packageId)
-          );
-        if (artifacts.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No data types found." },
-            ],
-          };
-        }
-        const text = artifacts.map(formatTypeArtifact).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ packageId }) => {
+      const artifacts =
+        await context.odataClient.getCollection<DataTypeDesigntimeArtifact>(
+          buildPackageDataTypesPath(packageId)
+        );
+      if (artifacts.length === 0) {
+        return "No data types found.";
       }
-    }
+      const text = artifacts.map(formatTypeArtifact).join("\n\n");
+      return text;
+    })
   );
 
   // 11. list_package_service_interfaces
@@ -462,31 +329,16 @@ export function registerPackageArtifactTools(
         packageId: z.string().describe("The integration package ID"),
       }),
     },
-    async ({ packageId }) => {
-      try {
-        const artifacts =
-          await context.odataClient.getCollection<ServiceInterfaceDesigntimeArtifact>(
-            buildPackageServiceInterfacesPath(packageId)
-          );
-        if (artifacts.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No service interfaces found." },
-            ],
-          };
-        }
-        const text = artifacts.map(formatTypeArtifact).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ packageId }) => {
+      const artifacts =
+        await context.odataClient.getCollection<ServiceInterfaceDesigntimeArtifact>(
+          buildPackageServiceInterfacesPath(packageId)
+        );
+      if (artifacts.length === 0) {
+        return "No service interfaces found.";
       }
-    }
+      const text = artifacts.map(formatTypeArtifact).join("\n\n");
+      return text;
+    })
   );
 }

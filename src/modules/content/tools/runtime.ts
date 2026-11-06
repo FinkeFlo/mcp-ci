@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type { IntegrationRuntimeArtifact } from "../types.js";
 import {
   buildRuntimeArtifactsPath,
@@ -61,39 +62,24 @@ export function registerRuntimeTools(
           .describe("Number of results to skip (for pagination)"),
       }),
     },
-    async ({ filter, select, orderby, top, skip }) => {
-      try {
-        const artifacts =
-          await context.odataClient.getCollection<IntegrationRuntimeArtifact>(
-            buildRuntimeArtifactsPath(),
-            {
-              $filter: filter,
-              $select: select,
-              $orderby: orderby,
-              $top: top,
-              $skip: skip,
-            }
-          );
-        if (artifacts.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No deployed artifacts found." },
-            ],
-          };
-        }
-        const text = artifacts.map(formatArtifact).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ filter, select, orderby, top, skip }) => {
+      const artifacts =
+        await context.odataClient.getCollection<IntegrationRuntimeArtifact>(
+          buildRuntimeArtifactsPath(),
+          {
+            $filter: filter,
+            $select: select,
+            $orderby: orderby,
+            $top: top,
+            $skip: skip,
+          }
+        );
+      if (artifacts.length === 0) {
+        return "No deployed artifacts found.";
       }
-    }
+      const text = artifacts.map(formatArtifact).join("\n\n");
+      return text;
+    })
   );
 
   // @api GET /IntegrationRuntimeArtifacts('{Id}')
@@ -106,25 +92,14 @@ export function registerRuntimeTools(
         id: z.string().describe("The artifact ID"),
       }),
     },
-    async ({ id }) => {
-      try {
-        const artifact =
-          await context.odataClient.getEntity<IntegrationRuntimeArtifact>(
-            buildRuntimeArtifactPath(id)
-          );
-        const text = formatArtifact(artifact);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id }) => {
+      const artifact =
+        await context.odataClient.getEntity<IntegrationRuntimeArtifact>(
+          buildRuntimeArtifactPath(id)
+        );
+      const text = formatArtifact(artifact);
+      return text;
+    })
   );
 
   // @api GET /IntegrationRuntimeArtifacts/$count
@@ -140,24 +115,13 @@ export function registerRuntimeTools(
           .describe("OData $filter expression, e.g. \"Type eq 'INTEGRATION_FLOW'\""),
       }),
     },
-    async ({ filter }) => {
-      try {
-        const path = filter
-          ? `${buildRuntimeArtifactsCountPath()}?$filter=${encodeURIComponent(filter)}`
-          : buildRuntimeArtifactsCountPath();
-        const count = await context.odataClient.getValue(path);
-        return {
-          content: [{ type: "text" as const, text: count }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ filter }) => {
+      const path = filter
+        ? `${buildRuntimeArtifactsCountPath()}?$filter=${encodeURIComponent(filter)}`
+        : buildRuntimeArtifactsCountPath();
+      const count = await context.odataClient.getValue(path);
+      return count;
+    })
   );
 
   // @api GET /IntegrationRuntimeArtifacts('{Id}')/ErrorInformation/$value
@@ -170,33 +134,15 @@ export function registerRuntimeTools(
         id: z.string().describe("The artifact ID"),
       }),
     },
-    async ({ id }) => {
-      try {
-        const errorText = await context.odataClient.getValue(
-          buildRuntimeArtifactErrorPath(id)
-        );
-        if (!errorText) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No error information available.",
-              },
-            ],
-          };
-        }
-        return {
-          content: [{ type: "text" as const, text: errorText }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id }) => {
+      const errorText = await context.odataClient.getValue(
+        buildRuntimeArtifactErrorPath(id)
+      );
+      if (!errorText) {
+        return "No error information available.";
       }
-    }
+      return errorText;
+    })
   );
 
   // @api GET /IntegrationRuntimeArtifacts('{Id}')
@@ -214,40 +160,17 @@ export function registerRuntimeTools(
           .describe("Set to true to actually undeploy the artifact"),
       }),
     },
-    async ({ id, confirm }) => {
-      try {
-        if (!confirm) {
-          const artifact =
-            await context.odataClient.getEntity<IntegrationRuntimeArtifact>(
-              buildRuntimeArtifactPath(id)
-            );
-          const preview = formatArtifact(artifact);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Artifact to undeploy:\n\n${preview}\n\nSet confirm to true to proceed.`,
-              },
-            ],
-          };
-        }
-        await context.odataClient.delete(buildRuntimeArtifactPath(id));
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Artifact '${id}' undeployed successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, confirm }) => {
+      if (!confirm) {
+        const artifact =
+          await context.odataClient.getEntity<IntegrationRuntimeArtifact>(
+            buildRuntimeArtifactPath(id)
+          );
+        const preview = formatArtifact(artifact);
+        return `Artifact to undeploy:\n\n${preview}\n\nSet confirm to true to proceed.`;
       }
-    }
+      await context.odataClient.delete(buildRuntimeArtifactPath(id));
+      return `Artifact '${id}' undeployed successfully.`;
+    })
   );
 }
