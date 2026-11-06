@@ -14,7 +14,7 @@ An [MCP](https://modelcontextprotocol.io) server for **SAP Cloud Integration** (
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 22+
 - An SAP Cloud Integration tenant with an OAuth2 client (`client_credentials`) that has the API roles you need, for example `MonitoringDataRead`
 
 ## Setup
@@ -50,7 +50,7 @@ The server communicates over stdio.
 
 ```sh
 npm test            # vitest
-npx tsc --noEmit    # type check
+npm run typecheck   # type check (app + scripts)
 npm run coverage    # API coverage report (requires the SAP specs, see docs/api/README.md)
 ```
 
