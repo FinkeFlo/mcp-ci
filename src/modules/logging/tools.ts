@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { Module, ModuleContext } from "../../core/types.js";
+import { textTool } from "../../core/tool.js";
 
 function extractActiveField(parsed: unknown): boolean | undefined {
   if (parsed && typeof parsed === "object") {
@@ -53,19 +54,10 @@ export const loggingModule: Module = {
           "Get the current external logging activation status for the active SAP Cloud Integration tenant.",
         inputSchema: z.object({}),
       },
-      async () => {
-        try {
-          const statusText = await getLoggingStatus(context);
-          return {
-            content: [{ type: "text" as const, text: statusText }],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [{ type: "text" as const, text: (error as Error).message }],
-          };
-        }
-      }
+      textTool(async () => {
+        const statusText = await getLoggingStatus(context);
+        return statusText;
+      })
     );
 
     // @api POST /activateExternalLogging
@@ -84,37 +76,21 @@ export const loggingModule: Module = {
             .describe("Set to true to actually activate external logging"),
         }),
       },
-      async ({ logLevel, confirm }) => {
-        try {
-          if (!confirm) {
-            const statusText = await getLoggingStatus(context);
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: `Current status: ${statusText}\n\nThis will activate external logging with level ${logLevel}. Call again with confirm: true to proceed.`,
-                },
-              ],
-            };
-          }
-
-          const result = await context.odataClient.post(
-            `/api/v1/activateExternalLogging?defaultLogLevel=${logLevel}`
-          );
-          const message =
-            result?.message ??
-            result?.d?.message ??
-            `External logging activated successfully with log level ${logLevel}.`;
-          return {
-            content: [{ type: "text" as const, text: String(message) }],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [{ type: "text" as const, text: (error as Error).message }],
-          };
+      textTool(async ({ logLevel, confirm }) => {
+        if (!confirm) {
+          const statusText = await getLoggingStatus(context);
+          return `Current status: ${statusText}\n\nThis will activate external logging with level ${logLevel}. Call again with confirm: true to proceed.`;
         }
-      }
+
+        const result = await context.odataClient.post(
+          `/api/v1/activateExternalLogging?defaultLogLevel=${logLevel}`
+        );
+        const message =
+          result?.message ??
+          result?.d?.message ??
+          `External logging activated successfully with log level ${logLevel}.`;
+        return String(message);
+      })
     );
 
     // @api POST /deactivateExternalLogging
@@ -130,37 +106,21 @@ export const loggingModule: Module = {
             .describe("Set to true to actually deactivate external logging"),
         }),
       },
-      async ({ confirm }) => {
-        try {
-          if (!confirm) {
-            const statusText = await getLoggingStatus(context);
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: `Current status: ${statusText}\n\nThis will deactivate external logging. Call again with confirm: true to proceed.`,
-                },
-              ],
-            };
-          }
-
-          const result = await context.odataClient.post(
-            "/api/v1/deactivateExternalLogging"
-          );
-          const message =
-            result?.message ??
-            result?.d?.message ??
-            "External logging deactivated successfully.";
-          return {
-            content: [{ type: "text" as const, text: String(message) }],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [{ type: "text" as const, text: (error as Error).message }],
-          };
+      textTool(async ({ confirm }) => {
+        if (!confirm) {
+          const statusText = await getLoggingStatus(context);
+          return `Current status: ${statusText}\n\nThis will deactivate external logging. Call again with confirm: true to proceed.`;
         }
-      }
+
+        const result = await context.odataClient.post(
+          "/api/v1/deactivateExternalLogging"
+        );
+        const message =
+          result?.message ??
+          result?.d?.message ??
+          "External logging deactivated successfully.";
+        return String(message);
+      })
     );
   },
 };
