@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { Module, ModuleContext } from "../../core/types.js";
+import { textTool } from "../../core/tool.js";
 import type { ArchivingKeyPerformanceIndicators } from "./types.js";
 
 function extractIsArchivedField(parsed: unknown): boolean | undefined {
@@ -65,19 +66,10 @@ export const archivingModule: Module = {
           "Get the current data archiving configuration for the active SAP Cloud Integration tenant.",
         inputSchema: z.object({}),
       },
-      async () => {
-        try {
-          const statusText = await getArchivingConfig(context);
-          return {
-            content: [{ type: "text" as const, text: statusText }],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [{ type: "text" as const, text: (error as Error).message }],
-          };
-        }
-      }
+      textTool(async () => {
+        const statusText = await getArchivingConfig(context);
+        return statusText;
+      })
     );
 
     // @api GET /ArchivingKeyPerformanceIndicators
@@ -95,29 +87,18 @@ export const archivingModule: Module = {
             ),
         }),
       },
-      async ({ filter }) => {
-        try {
-          const params = filter ? { $filter: filter } : undefined;
-          const kpis = await context.odataClient.getCollection<ArchivingKeyPerformanceIndicators>(
-            "/api/v1/ArchivingKeyPerformanceIndicators",
-            params
-          );
-          if (kpis.length === 0) {
-            return {
-              content: [{ type: "text" as const, text: "No archiving runs found." }],
-            };
-          }
-          const text = kpis.map(formatKpi).join("\n\n");
-          return {
-            content: [{ type: "text" as const, text: text }],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [{ type: "text" as const, text: (error as Error).message }],
-          };
+      textTool(async ({ filter }) => {
+        const params = filter ? { $filter: filter } : undefined;
+        const kpis = await context.odataClient.getCollection<ArchivingKeyPerformanceIndicators>(
+          "/api/v1/ArchivingKeyPerformanceIndicators",
+          params
+        );
+        if (kpis.length === 0) {
+          return "No archiving runs found.";
         }
-      }
+        const text = kpis.map(formatKpi).join("\n\n");
+        return text;
+      })
     );
 
     // @api POST /activateArchivingConfiguration
@@ -133,37 +114,21 @@ export const archivingModule: Module = {
             .describe("Set to true to actually activate archiving"),
         }),
       },
-      async ({ confirm }) => {
-        try {
-          if (!confirm) {
-            const statusText = await getArchivingConfig(context);
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: `Current status: ${statusText}\n\nThis will activate archiving. Call again with confirm: true to proceed.`,
-                },
-              ],
-            };
-          }
-
-          const result = await context.odataClient.post(
-            "/api/v1/activateArchivingConfiguration"
-          );
-          const message =
-            result?.message ??
-            result?.d?.message ??
-            "Archiving activated successfully.";
-          return {
-            content: [{ type: "text" as const, text: String(message) }],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [{ type: "text" as const, text: (error as Error).message }],
-          };
+      textTool(async ({ confirm }) => {
+        if (!confirm) {
+          const statusText = await getArchivingConfig(context);
+          return `Current status: ${statusText}\n\nThis will activate archiving. Call again with confirm: true to proceed.`;
         }
-      }
+
+        const result = await context.odataClient.post(
+          "/api/v1/activateArchivingConfiguration"
+        );
+        const message =
+          result?.message ??
+          result?.d?.message ??
+          "Archiving activated successfully.";
+        return String(message);
+      })
     );
   },
 };
