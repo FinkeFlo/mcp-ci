@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildListMessagesParams, buildGetErrorsParams, buildCountParams } from "../queries.js";
+import { buildListMessagesParams, buildGetErrorsParams, buildCountParams, buildAggregateParams } from "../queries.js";
 
 describe("buildListMessagesParams", () => {
   it("returns default params when no filters given", () => {
@@ -28,6 +28,24 @@ describe("buildListMessagesParams", () => {
     expect(
       buildListMessagesParams({ status: "FAILED", flowName: "MyFlow" }).$filter
     ).toBe("Status eq 'FAILED' and IntegrationFlowName eq 'MyFlow'");
+  });
+  it("filters by customStatus (e.g. SOAP soft fault: Status=COMPLETED, CustomStatus=ERROR)", () => {
+    expect(buildListMessagesParams({ customStatus: "ERROR" }).$filter).toBe(
+      "CustomStatus eq 'ERROR'"
+    );
+  });
+  it("combines status and customStatus filters with and", () => {
+    expect(
+      buildListMessagesParams({ status: "COMPLETED", customStatus: "ERROR" }).$filter
+    ).toBe("Status eq 'COMPLETED' and CustomStatus eq 'ERROR'");
+  });
+  it("escapes single quotes in customStatus values", () => {
+    expect(buildListMessagesParams({ customStatus: "ERR'OR" }).$filter).toBe(
+      "CustomStatus eq 'ERR''OR'"
+    );
+  });
+  it("includes CustomStatus in $select", () => {
+    expect(buildListMessagesParams({}).$select).toContain("CustomStatus");
   });
   it("respects custom top with max 200", () => {
     expect(buildListMessagesParams({ top: 10 }).$top).toBe(10);
@@ -98,6 +116,12 @@ describe("buildCountParams", () => {
     expect(params.$orderby).toBeUndefined();
   });
 
+  it("filters by customStatus", () => {
+    expect(buildCountParams({ customStatus: "ERROR" }).$filter).toBe(
+      "CustomStatus eq 'ERROR'"
+    );
+  });
+
   it("returns empty object when no filters given", () => {
     const params = buildCountParams({});
     expect(params.$filter).toBeUndefined();
@@ -143,5 +167,30 @@ describe("buildGetErrorsParams", () => {
     expect(params.$filter).toContain(
       "LogEnd ge datetime'2026-03-26T10:00:00'"
     );
+  });
+  it("optionally narrows by customStatus", () => {
+    const params = buildGetErrorsParams({
+      from: "2026-03-26T00:00:00Z",
+      customStatus: "ESCALATED",
+    });
+    expect(params.$filter).toContain("Status eq 'FAILED'");
+    expect(params.$filter).toContain("CustomStatus eq 'ESCALATED'");
+  });
+});
+
+describe("buildAggregateParams", () => {
+  it("selects the OData field for the chosen groupBy and includes pagination", () => {
+    const params = buildAggregateParams({ status: "FAILED" }, "flowName", 1000, 0);
+    expect(params.$select).toBe("IntegrationFlowName");
+    expect(params.$top).toBe(1000);
+    expect(params.$skip).toBe(0);
+    expect(params.$orderby).toBe("LogEnd desc");
+    expect(params.$filter).toBe("Status eq 'FAILED'");
+  });
+  it("maps groupBy values to OData fields", () => {
+    expect(buildAggregateParams({}, "status", 10, 0).$select).toBe("Status");
+    expect(buildAggregateParams({}, "customStatus", 10, 0).$select).toBe("CustomStatus");
+    expect(buildAggregateParams({}, "sender", 10, 0).$select).toBe("Sender");
+    expect(buildAggregateParams({}, "receiver", 10, 0).$select).toBe("Receiver");
   });
 });

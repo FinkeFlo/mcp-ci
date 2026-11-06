@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext, Module } from "../../core/types.js";
 import { textTool } from "../../core/tool.js";
+import type { ODataParams } from "../../core/odata-client.js";
 import type {
   MessageProcessingLog,
   CustomHeaderProperty,
@@ -10,20 +11,53 @@ import type {
   MessageStoreEntry,
   ErrorInformation,
 } from "./types.js";
-import { buildListMessagesParams, buildGetErrorsParams, buildCountParams, buildErrorInformationPath } from "./queries.js";
+import {
+  buildListMessagesParams,
+  buildGetErrorsParams,
+  buildCountParams,
+  buildAggregateParams,
+  buildErrorInformationPath,
+  AGGREGATE_FIELD_TO_ODATA,
+  type ListMessagesFilters,
+} from "./queries.js";
 
 const API_PATH = "/api/v1/MessageProcessingLogs";
+
+const CUSTOM_STATUS_DESCRIPTION =
+  "Filter by custom status set by the iFlow (e.g. ERROR, ESCALATED). Independent of Status — useful for SOAP soft faults where Status=COMPLETED but CustomStatus=ERROR.";
 
 function formatMessage(m: MessageProcessingLog): string {
   const lines = [
     `MessageGuid: ${m.MessageGuid}`,
-    `Status: ${m.Status}`,
+    m.CustomStatus
+      ? `Status: ${m.Status} (CustomStatus: ${m.CustomStatus})`
+      : `Status: ${m.Status}`,
     `Flow: ${m.IntegrationFlowName ?? "n/a"}`,
     `Sender: ${m.Sender ?? "n/a"} -> Receiver: ${m.Receiver ?? "n/a"}`,
     `Start: ${m.LogStart ?? "n/a"} | End: ${m.LogEnd ?? "n/a"}`,
   ];
   if (m.AlternateWebLink) lines.push(`Link: ${m.AlternateWebLink}`);
   return lines.join("\n");
+}
+
+function toQueryString(params: ODataParams): string {
+  const entries = Object.entries(params);
+  if (entries.length === 0) return "";
+  return (
+    "?" +
+    entries
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+      .join("&")
+  );
+}
+
+async function countMessages(
+  context: ModuleContext,
+  filters: Omit<ListMessagesFilters, "top">
+): Promise<string> {
+  return context.odataClient.getValue(
+    `${API_PATH}/$count${toQueryString(buildCountParams(filters))}`
+  );
 }
 
 export const monitoringModule: Module = {
@@ -43,6 +77,10 @@ export const monitoringModule: Module = {
             .describe(
               "Filter by status (COMPLETED, FAILED, PROCESSING, RETRY, etc.)"
             ),
+          customStatus: z
+            .string()
+            .optional()
+            .describe(CUSTOM_STATUS_DESCRIPTION),
           flowName: z
             .string()
             .optional()
@@ -187,6 +225,10 @@ export const monitoringModule: Module = {
             .describe(
               "Filter by status (COMPLETED, FAILED, PROCESSING, RETRY, etc.)"
             ),
+          customStatus: z
+            .string()
+            .optional()
+            .describe(CUSTOM_STATUS_DESCRIPTION),
           flowName: z
             .string()
             .optional()
@@ -216,22 +258,249 @@ export const monitoringModule: Module = {
         }),
       },
       textTool(async (filters) => {
-        const params = buildCountParams(filters);
-        const entries = Object.entries(params);
-        const queryString =
-          entries.length > 0
-            ? "?" +
-              entries
-                .map(
-                  ([k, v]) =>
-                    `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`
-                )
-                .join("&")
-            : "";
-        const count = await context.odataClient.getValue(
-          `${API_PATH}/$count${queryString}`
-        );
+        const count = await countMessages(context, filters);
         return `Message count: ${count}`;
+      })
+    );
+
+    // --- aggregate_messages ---
+    // @api GET /MessageProcessingLogs
+    // @api GET /MessageProcessingLogs/$count
+    server.registerTool(
+      "aggregate_messages",
+      {
+        description:
+          "Group message processing logs by flow/status/customStatus/sender/receiver and return counts per group. " +
+          "Use this for 'top failing flows', 'errors per flow' or 'distribution per status' questions instead of paginating list_messages. " +
+          "Pages through the logs selecting only the grouped field, then aggregates in memory.",
+        inputSchema: z.object({
+          groupBy: z
+            .enum(["flowName", "status", "customStatus", "sender", "receiver"])
+            .optional()
+            .describe("Field to group by (default: flowName)"),
+          status: z
+            .string()
+            .optional()
+            .describe(
+              "Filter by status (COMPLETED, FAILED, PROCESSING, RETRY, etc.)"
+            ),
+          customStatus: z
+            .string()
+            .optional()
+            .describe(CUSTOM_STATUS_DESCRIPTION),
+          flowName: z
+            .string()
+            .optional()
+            .describe("Filter by integration flow name"),
+          from: z
+            .string()
+            .optional()
+            .describe("Start time (ISO 8601, e.g. 2026-03-26T00:00:00Z)"),
+          to: z
+            .string()
+            .optional()
+            .describe("End time (ISO 8601)"),
+          correlationId: z
+            .string()
+            .optional()
+            .describe("Filter by correlation ID"),
+          applicationMessageId: z
+            .string()
+            .optional()
+            .describe("Filter by application message ID"),
+          customHeaders: z
+            .record(z.string(), z.string())
+            .optional()
+            .describe(
+              "Filter by custom header properties (key-value pairs), e.g. { documentNumber: '1234567890' }"
+            ),
+          top: z
+            .number()
+            .optional()
+            .describe("Max number of groups to return (default 20)"),
+          maxScan: z
+            .number()
+            .optional()
+            .describe(
+              "Maximum messages to scan across pages (default 20000, hard cap 100000). " +
+                "If more messages match, results are based on the most recent maxScan messages."
+            ),
+        }),
+      },
+      textTool(async ({ groupBy = "flowName", top, maxScan, ...filters }) => {
+        const odataField = AGGREGATE_FIELD_TO_ODATA[groupBy];
+        const topGroups = top ?? 20;
+        const scanLimit = Math.min(maxScan ?? 20000, 100000);
+        const PAGE_SIZE = 1000;
+
+        const total = parseInt(await countMessages(context, filters), 10) || 0;
+        if (total === 0) {
+          return "No messages found matching the given filters.";
+        }
+
+        const counts = new Map<string, number>();
+        const limit = Math.min(total, scanLimit);
+        let scanned = 0;
+        while (scanned < limit) {
+          const pageSize = Math.min(PAGE_SIZE, limit - scanned);
+          const page = await context.odataClient.getCollection<Record<string, unknown>>(
+            API_PATH,
+            buildAggregateParams(filters, groupBy, pageSize, scanned)
+          );
+          if (page.length === 0) break;
+          for (const row of page) {
+            const key = (row[odataField] as string | null | undefined) ?? "(unknown)";
+            counts.set(key, (counts.get(key) ?? 0) + 1);
+          }
+          scanned += page.length;
+          if (page.length < pageSize) break;
+        }
+
+        const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+        const shown = sorted.slice(0, topGroups);
+        const keyWidth = Math.max(...shown.map(([k]) => k.length), 5);
+
+        const lines = [
+          `Aggregation by ${groupBy} (${odataField})`,
+          `Total messages matched: ${total}`,
+          `Messages scanned: ${scanned}${scanned < total ? " (truncated — increase maxScan or narrow filters for full coverage)" : ""}`,
+          `Distinct groups: ${counts.size}`,
+          `Showing top ${shown.length} of ${sorted.length}`,
+          "",
+          `  Count   ${groupBy.padEnd(keyWidth)}`,
+          `  -----   ${"-".repeat(keyWidth)}`,
+          ...shown.map(([key, c]) => `  ${String(c).padStart(5)}   ${key}`),
+        ];
+        if (sorted.length > topGroups) {
+          const rest = sorted.slice(topGroups).reduce((sum, [, c]) => sum + c, 0);
+          lines.push(`  ${String(rest).padStart(5)}   (${sorted.length - topGroups} other groups)`);
+        }
+        return lines.join("\n");
+      })
+    );
+
+    // --- list_messages_with_headers ---
+    // @api GET /MessageProcessingLogs
+    // @api GET /MessageProcessingLogs('{MessageGuid}')/CustomHeaderProperties
+    server.registerTool(
+      "list_messages_with_headers",
+      {
+        description:
+          "List message processing logs and include their CustomHeaderProperties inline. " +
+          "Same filters as list_messages, but additionally fetches CustomHeaderProperties per message in parallel " +
+          "(SAP CPI does not support $expand=CustomHeaderProperties on the MPL collection). " +
+          "Use when you need to read or aggregate custom header values across many messages without n+1 get_message calls.",
+        inputSchema: z.object({
+          status: z
+            .string()
+            .optional()
+            .describe(
+              "Filter by status (COMPLETED, FAILED, PROCESSING, RETRY, etc.)"
+            ),
+          customStatus: z
+            .string()
+            .optional()
+            .describe(CUSTOM_STATUS_DESCRIPTION),
+          flowName: z
+            .string()
+            .optional()
+            .describe("Filter by integration flow name"),
+          from: z
+            .string()
+            .optional()
+            .describe("Start time (ISO 8601, e.g. 2026-03-26T00:00:00Z)"),
+          to: z
+            .string()
+            .optional()
+            .describe("End time (ISO 8601)"),
+          correlationId: z
+            .string()
+            .optional()
+            .describe("Filter by correlation ID"),
+          applicationMessageId: z
+            .string()
+            .optional()
+            .describe("Filter by application message ID"),
+          customHeaders: z
+            .record(z.string(), z.string())
+            .optional()
+            .describe(
+              "Filter by custom header properties (key-value pairs), e.g. { documentNumber: '1234567890' }"
+            ),
+          top: z
+            .number()
+            .optional()
+            .describe("Max results (default 50, max 200)"),
+          headerNames: z
+            .array(z.string())
+            .optional()
+            .describe(
+              "Optional whitelist of custom header names to include in the output. If omitted, all headers are returned."
+            ),
+          concurrency: z
+            .number()
+            .optional()
+            .describe("Parallel fetches for CustomHeaderProperties (default 20, max 50)"),
+        }),
+      },
+      textTool(async ({ headerNames, concurrency, ...filters }) => {
+        const messages = await context.odataClient.getCollection<MessageProcessingLog>(
+          API_PATH,
+          buildListMessagesParams(filters)
+        );
+        if (messages.length === 0) {
+          return "No messages found matching the given filters.";
+        }
+
+        const workers = Math.min(Math.max(concurrency ?? 20, 1), 50, messages.length);
+        const whitelist = headerNames && headerNames.length > 0 ? new Set(headerNames) : null;
+        const headersByGuid = new Map<string, CustomHeaderProperty[] | Error>();
+
+        let cursor = 0;
+        const worker = async () => {
+          while (cursor < messages.length) {
+            const guid = messages[cursor++].MessageGuid;
+            try {
+              headersByGuid.set(
+                guid,
+                await context.odataClient.getCollection<CustomHeaderProperty>(
+                  `${API_PATH}('${guid}')/CustomHeaderProperties`
+                )
+              );
+            } catch (err) {
+              headersByGuid.set(guid, err instanceof Error ? err : new Error(String(err)));
+            }
+          }
+        };
+        await Promise.all(Array.from({ length: workers }, worker));
+
+        let errorCount = 0;
+        const sections = messages.map((m) => {
+          const lines = [formatMessage(m)];
+          const result = headersByGuid.get(m.MessageGuid);
+          if (result instanceof Error) {
+            errorCount++;
+            lines.push(`Custom Headers: (error: ${result.message})`);
+          } else if (result && result.length > 0) {
+            const filtered = whitelist
+              ? result.filter((h) => h.Name && whitelist.has(h.Name))
+              : result;
+            if (filtered.length > 0) {
+              lines.push(
+                "Custom Headers:\n" +
+                  filtered.map((h) => `  ${h.Name ?? h.Id}: ${h.Value ?? "n/a"}`).join("\n")
+              );
+            } else {
+              lines.push("Custom Headers: (none of the requested names set)");
+            }
+          } else {
+            lines.push("Custom Headers: (none)");
+          }
+          return lines.join("\n");
+        });
+
+        const errors = errorCount > 0 ? ` (${errorCount} header fetch error(s))` : "";
+        return `Found ${messages.length} message(s)${errors}:\n\n${sections.join("\n---\n")}`;
       })
     );
 
@@ -249,6 +518,12 @@ export const monitoringModule: Module = {
             .optional()
             .describe(
               "Start time (ISO 8601). Defaults to 1 hour ago."
+            ),
+          customStatus: z
+            .string()
+            .optional()
+            .describe(
+              "Optionally narrow by custom status (e.g. ERROR, ESCALATED) in addition to Status='FAILED'."
             ),
         }),
       },
