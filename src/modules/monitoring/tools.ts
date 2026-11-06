@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext, Module } from "../../core/types.js";
+import { textTool } from "../../core/tool.js";
 import type {
   MessageProcessingLog,
   CustomHeaderProperty,
@@ -74,42 +75,19 @@ export const monitoringModule: Module = {
             .describe("Max results (default 50, max 200)"),
         }),
       },
-      async (filters) => {
-        try {
-          const params = buildListMessagesParams(filters);
-          const messages =
-            await context.odataClient.getCollection<MessageProcessingLog>(
-              API_PATH,
-              params
-            );
-          if (messages.length === 0) {
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: "No messages found matching the given filters.",
-                },
-              ],
-            };
-          }
-          const text = messages.map(formatMessage).join("\n---\n");
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Found ${messages.length} message(s):\n\n${text}`,
-              },
-            ],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [
-              { type: "text" as const, text: (error as Error).message },
-            ],
-          };
+      textTool(async (filters) => {
+        const params = buildListMessagesParams(filters);
+        const messages =
+          await context.odataClient.getCollection<MessageProcessingLog>(
+            API_PATH,
+            params
+          );
+        if (messages.length === 0) {
+          return "No messages found matching the given filters.";
         }
-      }
+        const text = messages.map(formatMessage).join("\n---\n");
+        return `Found ${messages.length} message(s):\n\n${text}`;
+      })
     );
 
     // --- get_message ---
@@ -126,86 +104,73 @@ export const monitoringModule: Module = {
           messageGuid: z.string().describe("The MessageGuid of the message"),
         }),
       },
-      async ({ messageGuid }) => {
-        try {
-          const message = await context.odataClient.getEntity<
-            MessageProcessingLog & {
-              CustomHeaderProperties: { results: CustomHeaderProperty[] };
-              AdapterAttributes: { results: AdapterAttribute[] };
-            }
-          >(`${API_PATH}('${messageGuid}')`, {
-            $expand: "CustomHeaderProperties,AdapterAttributes",
-          });
-
-          const sections: string[] = [formatMessage(message)];
-
-          // Extended details
-          const extendedFields: [string, unknown][] = [
-            ["CustomStatus", message.CustomStatus],
-            ["TransactionId", message.TransactionId],
-            ["ApplicationMessageType", message.ApplicationMessageType],
-            ["PredecessorMessageGuid", message.PredecessorMessageGuid],
-            ["PackageId", message.IntegrationArtifact?.PackageId],
-            ["PackageName", message.IntegrationArtifact?.PackageName],
-          ];
-          const extendedLines = extendedFields
-            .filter(([, v]) => v != null)
-            .map(([k, v]) => `  ${k}: ${v}`);
-          if (extendedLines.length > 0) {
-            sections.push("Extended Details:\n" + extendedLines.join("\n"));
+      textTool(async ({ messageGuid }) => {
+        const message = await context.odataClient.getEntity<
+          MessageProcessingLog & {
+            CustomHeaderProperties: { results: CustomHeaderProperty[] };
+            AdapterAttributes: { results: AdapterAttribute[] };
           }
+        >(`${API_PATH}('${messageGuid}')`, {
+          $expand: "CustomHeaderProperties,AdapterAttributes",
+        });
 
-          // Custom header properties
-          const headers = message.CustomHeaderProperties?.results ?? [];
-          if (headers.length > 0) {
-            sections.push(
-              "Custom Headers:\n" +
-                headers
-                  .map((h) => `  ${h.Name ?? h.Id}: ${h.Value ?? "n/a"}`)
-                  .join("\n")
-            );
-          }
+        const sections: string[] = [formatMessage(message)];
 
-          // Adapter attributes
-          const attrs = message.AdapterAttributes?.results ?? [];
-          if (attrs.length > 0) {
-            sections.push(
-              "Adapter Attributes:\n" +
-                attrs
-                  .map((a) => `  ${a.Name ?? a.Id}: ${a.Value ?? "n/a"}`)
-                  .join("\n")
-            );
-          }
-
-          // Error info for failed/retry messages
-          if (
-            message.Status === "FAILED" ||
-            message.Status === "RETRY"
-          ) {
-            try {
-              const errorText = await context.odataClient.getValue(
-                `${API_PATH}('${messageGuid}')/ErrorInformation/$value`
-              );
-              sections.push(`Error Information:\n${errorText}`);
-            } catch {
-              sections.push("Error Information: (could not retrieve)");
-            }
-          }
-
-          return {
-            content: [
-              { type: "text" as const, text: sections.join("\n\n") },
-            ],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [
-              { type: "text" as const, text: (error as Error).message },
-            ],
-          };
+        // Extended details
+        const extendedFields: [string, unknown][] = [
+          ["CustomStatus", message.CustomStatus],
+          ["TransactionId", message.TransactionId],
+          ["ApplicationMessageType", message.ApplicationMessageType],
+          ["PredecessorMessageGuid", message.PredecessorMessageGuid],
+          ["PackageId", message.IntegrationArtifact?.PackageId],
+          ["PackageName", message.IntegrationArtifact?.PackageName],
+        ];
+        const extendedLines = extendedFields
+          .filter(([, v]) => v != null)
+          .map(([k, v]) => `  ${k}: ${v}`);
+        if (extendedLines.length > 0) {
+          sections.push("Extended Details:\n" + extendedLines.join("\n"));
         }
-      }
+
+        // Custom header properties
+        const headers = message.CustomHeaderProperties?.results ?? [];
+        if (headers.length > 0) {
+          sections.push(
+            "Custom Headers:\n" +
+              headers
+                .map((h) => `  ${h.Name ?? h.Id}: ${h.Value ?? "n/a"}`)
+                .join("\n")
+          );
+        }
+
+        // Adapter attributes
+        const attrs = message.AdapterAttributes?.results ?? [];
+        if (attrs.length > 0) {
+          sections.push(
+            "Adapter Attributes:\n" +
+              attrs
+                .map((a) => `  ${a.Name ?? a.Id}: ${a.Value ?? "n/a"}`)
+                .join("\n")
+          );
+        }
+
+        // Error info for failed/retry messages
+        if (
+          message.Status === "FAILED" ||
+          message.Status === "RETRY"
+        ) {
+          try {
+            const errorText = await context.odataClient.getValue(
+              `${API_PATH}('${messageGuid}')/ErrorInformation/$value`
+            );
+            sections.push(`Error Information:\n${errorText}`);
+          } catch {
+            sections.push("Error Information: (could not retrieve)");
+          }
+        }
+
+        return sections.join("\n\n");
+      })
     );
 
     // --- count_messages ---
@@ -250,40 +215,24 @@ export const monitoringModule: Module = {
             ),
         }),
       },
-      async (filters) => {
-        try {
-          const params = buildCountParams(filters);
-          const entries = Object.entries(params);
-          const queryString =
-            entries.length > 0
-              ? "?" +
-                entries
-                  .map(
-                    ([k, v]) =>
-                      `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`
-                  )
-                  .join("&")
-              : "";
-          const count = await context.odataClient.getValue(
-            `${API_PATH}/$count${queryString}`
-          );
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Message count: ${count}`,
-              },
-            ],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [
-              { type: "text" as const, text: (error as Error).message },
-            ],
-          };
-        }
-      }
+      textTool(async (filters) => {
+        const params = buildCountParams(filters);
+        const entries = Object.entries(params);
+        const queryString =
+          entries.length > 0
+            ? "?" +
+              entries
+                .map(
+                  ([k, v]) =>
+                    `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`
+                )
+                .join("&")
+            : "";
+        const count = await context.odataClient.getValue(
+          `${API_PATH}/$count${queryString}`
+        );
+        return `Message count: ${count}`;
+      })
     );
 
     // --- get_errors ---
@@ -303,89 +252,69 @@ export const monitoringModule: Module = {
             ),
         }),
       },
-      async (filters) => {
-        try {
-          const params = buildGetErrorsParams(filters);
-          const messages =
-            await context.odataClient.getCollection<MessageProcessingLog>(
-              API_PATH,
-              params
-            );
-
-          if (messages.length === 0) {
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: "No failed messages found in the given time range.",
-                },
-              ],
-            };
-          }
-
-          // Group by IntegrationFlowName
-          const groups = new Map<
-            string,
-            { count: number; latest: MessageProcessingLog }
-          >();
-          for (const msg of messages) {
-            const key = msg.IntegrationFlowName ?? "(unknown)";
-            const existing = groups.get(key);
-            if (existing) {
-              existing.count++;
-            } else {
-              groups.set(key, { count: 1, latest: msg });
-            }
-          }
-
-          // Fetch sample error per flow in parallel
-          const flowEntries = Array.from(groups.entries());
-          const errorTexts = await Promise.all(
-            flowEntries.map(async ([, { latest }]) => {
-              try {
-                return await context.odataClient.getValue(
-                  `${API_PATH}('${latest.MessageGuid}')/ErrorInformation/$value`
-                );
-              } catch {
-                return null;
-              }
-            })
+      textTool(async (filters) => {
+        const params = buildGetErrorsParams(filters);
+        const messages =
+          await context.odataClient.getCollection<MessageProcessingLog>(
+            API_PATH,
+            params
           );
 
-          const lines: string[] = [
-            `Total failed messages: ${messages.length}`,
-            `Affected flows: ${groups.size}`,
-            "",
-          ];
-
-          flowEntries.forEach(([flowName, { count, latest }], i) => {
-            lines.push(`Flow: ${flowName}`);
-            lines.push(`  Failures: ${count}`);
-            lines.push(`  Latest: ${latest.LogEnd ?? "n/a"}`);
-            lines.push(`  MessageGuid: ${latest.MessageGuid}`);
-            if (latest.AlternateWebLink) {
-              lines.push(`  Link: ${latest.AlternateWebLink}`);
-            }
-            if (errorTexts[i]) {
-              lines.push(`  Sample error: ${errorTexts[i]}`);
-            }
-            lines.push("");
-          });
-
-          return {
-            content: [
-              { type: "text" as const, text: lines.join("\n") },
-            ],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [
-              { type: "text" as const, text: (error as Error).message },
-            ],
-          };
+        if (messages.length === 0) {
+          return "No failed messages found in the given time range.";
         }
-      }
+
+        // Group by IntegrationFlowName
+        const groups = new Map<
+          string,
+          { count: number; latest: MessageProcessingLog }
+        >();
+        for (const msg of messages) {
+          const key = msg.IntegrationFlowName ?? "(unknown)";
+          const existing = groups.get(key);
+          if (existing) {
+            existing.count++;
+          } else {
+            groups.set(key, { count: 1, latest: msg });
+          }
+        }
+
+        // Fetch sample error per flow in parallel
+        const flowEntries = Array.from(groups.entries());
+        const errorTexts = await Promise.all(
+          flowEntries.map(async ([, { latest }]) => {
+            try {
+              return await context.odataClient.getValue(
+                `${API_PATH}('${latest.MessageGuid}')/ErrorInformation/$value`
+              );
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        const lines: string[] = [
+          `Total failed messages: ${messages.length}`,
+          `Affected flows: ${groups.size}`,
+          "",
+        ];
+
+        flowEntries.forEach(([flowName, { count, latest }], i) => {
+          lines.push(`Flow: ${flowName}`);
+          lines.push(`  Failures: ${count}`);
+          lines.push(`  Latest: ${latest.LogEnd ?? "n/a"}`);
+          lines.push(`  MessageGuid: ${latest.MessageGuid}`);
+          if (latest.AlternateWebLink) {
+            lines.push(`  Link: ${latest.AlternateWebLink}`);
+          }
+          if (errorTexts[i]) {
+            lines.push(`  Sample error: ${errorTexts[i]}`);
+          }
+          lines.push("");
+        });
+
+        return lines.join("\n");
+      })
     );
     // --- get_attachments ---
     // @api GET /MessageProcessingLogs('{MessageGuid}')/Attachments
@@ -404,65 +333,40 @@ export const monitoringModule: Module = {
             ),
         }),
       },
-      async ({ messageGuid, attachmentId }) => {
+      textTool(async ({ messageGuid, attachmentId }) => {
         const MAX_SIZE = 100 * 1024;
-        try {
-          if (attachmentId) {
-            const content = await context.odataClient.getValue(
-              `${API_PATH}('${messageGuid}')/Attachments('${attachmentId}')/$value`
-            );
-            const text =
-              content.length > MAX_SIZE
-                ? `${content.slice(0, MAX_SIZE)}\n\n[Truncated: original size ${content.length} chars]`
-                : content;
-            return {
-              content: [{ type: "text" as const, text }],
-            };
-          }
+        if (attachmentId) {
+          const content = await context.odataClient.getValue(
+            `${API_PATH}('${messageGuid}')/Attachments('${attachmentId}')/$value`
+          );
+          const text =
+            content.length > MAX_SIZE
+              ? `${content.slice(0, MAX_SIZE)}\n\n[Truncated: original size ${content.length} chars]`
+              : content;
+          return text;
+        }
 
-          const attachments =
-            await context.odataClient.getCollection<MessageProcessingLogAttachment>(
-              `${API_PATH}('${messageGuid}')/Attachments`
-            );
-
-          if (attachments.length === 0) {
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: "No attachments found for this message.",
-                },
-              ],
-            };
-          }
-
-          const lines = attachments.map((a) =>
-            [
-              `Id: ${a.Id}`,
-              `Name: ${a.Name ?? "n/a"}`,
-              `ContentType: ${a.ContentType ?? "n/a"}`,
-              `Size: ${a.PayloadSize ?? "n/a"}`,
-              `Time: ${a.TimeStamp ?? "n/a"}`,
-            ].join("\n")
+        const attachments =
+          await context.odataClient.getCollection<MessageProcessingLogAttachment>(
+            `${API_PATH}('${messageGuid}')/Attachments`
           );
 
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Found ${attachments.length} attachment(s):\n\n${lines.join("\n---\n")}`,
-              },
-            ],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [
-              { type: "text" as const, text: (error as Error).message },
-            ],
-          };
+        if (attachments.length === 0) {
+          return "No attachments found for this message.";
         }
-      }
+
+        const lines = attachments.map((a) =>
+          [
+            `Id: ${a.Id}`,
+            `Name: ${a.Name ?? "n/a"}`,
+            `ContentType: ${a.ContentType ?? "n/a"}`,
+            `Size: ${a.PayloadSize ?? "n/a"}`,
+            `Time: ${a.TimeStamp ?? "n/a"}`,
+          ].join("\n")
+        );
+
+        return `Found ${attachments.length} attachment(s):\n\n${lines.join("\n---\n")}`;
+      })
     );
     // @api GET /MessageProcessingLogs('{MessageGuid}')/ErrorInformation
     server.registerTool(
@@ -476,28 +380,17 @@ export const monitoringModule: Module = {
             .describe("The MessageGuid of the message processing log"),
         }),
       },
-      async ({ messageGuid }) => {
-        try {
-          const entity = await context.odataClient.getEntity<ErrorInformation>(
-            buildErrorInformationPath(messageGuid)
-          );
-          const lines = [
-            `MessageGuid: ${entity.MessageGuid}`,
-            `Type: ${entity.Type ?? "n/a"}`,
-            `LastErrorModelStepId: ${entity.LastErrorModelStepId ?? "n/a"}`,
-          ];
-          return {
-            content: [{ type: "text" as const, text: lines.join("\n") }],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [
-              { type: "text" as const, text: (error as Error).message },
-            ],
-          };
-        }
-      }
+      textTool(async ({ messageGuid }) => {
+        const entity = await context.odataClient.getEntity<ErrorInformation>(
+          buildErrorInformationPath(messageGuid)
+        );
+        const lines = [
+          `MessageGuid: ${entity.MessageGuid}`,
+          `Type: ${entity.Type ?? "n/a"}`,
+          `LastErrorModelStepId: ${entity.LastErrorModelStepId ?? "n/a"}`,
+        ];
+        return lines.join("\n");
+      })
     );
     // --- get_message_store_entries ---
     // @api GET /MessageProcessingLogs('{MessageGuid}')/MessageStoreEntries
@@ -516,64 +409,39 @@ export const monitoringModule: Module = {
             ),
         }),
       },
-      async ({ messageGuid, entryId }) => {
+      textTool(async ({ messageGuid, entryId }) => {
         const MAX_SIZE = 100 * 1024;
-        try {
-          if (entryId) {
-            const content = await context.odataClient.getValue(
-              `${API_PATH}('${messageGuid}')/MessageStoreEntries('${entryId}')/$value`
-            );
-            const text =
-              content.length > MAX_SIZE
-                ? `${content.slice(0, MAX_SIZE)}\n\n[Truncated: original size ${content.length} chars]`
-                : content;
-            return {
-              content: [{ type: "text" as const, text }],
-            };
-          }
+        if (entryId) {
+          const content = await context.odataClient.getValue(
+            `${API_PATH}('${messageGuid}')/MessageStoreEntries('${entryId}')/$value`
+          );
+          const text =
+            content.length > MAX_SIZE
+              ? `${content.slice(0, MAX_SIZE)}\n\n[Truncated: original size ${content.length} chars]`
+              : content;
+          return text;
+        }
 
-          const entries =
-            await context.odataClient.getCollection<MessageStoreEntry>(
-              `${API_PATH}('${messageGuid}')/MessageStoreEntries`
-            );
-
-          if (entries.length === 0) {
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: "No message store entries found for this message.",
-                },
-              ],
-            };
-          }
-
-          const lines = entries.map((e) =>
-            [
-              `Id: ${e.Id}`,
-              `StoreId: ${e.MessageStoreId ?? "n/a"}`,
-              `Time: ${e.TimeStamp ?? "n/a"}`,
-              `HasAttachments: ${e.HasAttachments ?? "n/a"}`,
-            ].join("\n")
+        const entries =
+          await context.odataClient.getCollection<MessageStoreEntry>(
+            `${API_PATH}('${messageGuid}')/MessageStoreEntries`
           );
 
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Found ${entries.length} message store entr${entries.length === 1 ? "y" : "ies"}:\n\n${lines.join("\n---\n")}`,
-              },
-            ],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [
-              { type: "text" as const, text: (error as Error).message },
-            ],
-          };
+        if (entries.length === 0) {
+          return "No message store entries found for this message.";
         }
-      }
+
+        const lines = entries.map((e) =>
+          [
+            `Id: ${e.Id}`,
+            `StoreId: ${e.MessageStoreId ?? "n/a"}`,
+            `Time: ${e.TimeStamp ?? "n/a"}`,
+            `HasAttachments: ${e.HasAttachments ?? "n/a"}`,
+          ].join("\n")
+        );
+
+        return `Found ${entries.length} message store entr${entries.length === 1 ? "y" : "ies"}:\n\n${lines.join("\n---\n")}`;
+      })
     );
   },
 };
