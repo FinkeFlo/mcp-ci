@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type {
   OrphanedInterchange,
   ErrorDetail,
@@ -115,44 +116,26 @@ export function registerOrphanedInterchangeTools(
           .describe("Set to 'allpages' to include total count in response"),
       }),
     },
-    async ({ filter, orderby, select, expand, top, skip, inlinecount }) => {
-      try {
-        const interchanges =
-          await context.odataClient.getCollection<OrphanedInterchange>(
-            buildOrphanedInterchangesPath(),
-            {
-              $filter: filter,
-              $orderby: orderby,
-              $select: select,
-              $expand: expand,
-              $top: top,
-              $skip: skip,
-              $inlinecount: inlinecount,
-            }
-          );
-        if (interchanges.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No orphaned interchanges found.",
-              },
-            ],
-          };
-        }
-        const text = interchanges.map(formatOrphanedInterchange).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ filter, orderby, select, expand, top, skip, inlinecount }) => {
+      const interchanges =
+        await context.odataClient.getCollection<OrphanedInterchange>(
+          buildOrphanedInterchangesPath(),
+          {
+            $filter: filter,
+            $orderby: orderby,
+            $select: select,
+            $expand: expand,
+            $top: top,
+            $skip: skip,
+            $inlinecount: inlinecount,
+          }
+        );
+      if (interchanges.length === 0) {
+        return "No orphaned interchanges found.";
       }
-    }
+      const text = interchanges.map(formatOrphanedInterchange).join("\n\n");
+      return text;
+    })
   );
 
   // 2. get_orphaned_interchange
@@ -178,29 +161,18 @@ export function registerOrphanedInterchangeTools(
           ),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const interchange =
-          await context.odataClient.getEntity<OrphanedInterchange>(
-            buildOrphanedInterchangePath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        const text = formatOrphanedInterchange(interchange);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id, select, expand }) => {
+      const interchange =
+        await context.odataClient.getEntity<OrphanedInterchange>(
+          buildOrphanedInterchangePath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      const text = formatOrphanedInterchange(interchange);
+      return text;
+    })
   );
 
   // 3. count_orphaned_interchanges
@@ -219,24 +191,13 @@ export function registerOrphanedInterchangeTools(
           ),
       }),
     },
-    async ({ filter }) => {
-      try {
-        const path = filter
-          ? `${buildOrphanedInterchangesCountPath()}?$filter=${encodeURIComponent(filter)}`
-          : buildOrphanedInterchangesCountPath();
-        const count = await context.odataClient.getValue(path);
-        return {
-          content: [{ type: "text" as const, text: count }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ filter }) => {
+      const path = filter
+        ? `${buildOrphanedInterchangesCountPath()}?$filter=${encodeURIComponent(filter)}`
+        : buildOrphanedInterchangesCountPath();
+      const count = await context.odataClient.getValue(path);
+      return count;
+    })
   );
 
   // 4. get_orphaned_interchange_errors
@@ -252,35 +213,17 @@ export function registerOrphanedInterchangeTools(
           .describe("The GUID of the orphaned interchange document"),
       }),
     },
-    async ({ id }) => {
-      try {
-        const errors =
-          await context.odataClient.getCollection<ErrorDetail>(
-            buildOrphanedInterchangeErrorDetailsPath(id)
-          );
-        if (errors.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No error details found for this orphaned interchange.",
-              },
-            ],
-          };
-        }
-        const text = errors.map(formatErrorDetail).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id }) => {
+      const errors =
+        await context.odataClient.getCollection<ErrorDetail>(
+          buildOrphanedInterchangeErrorDetailsPath(id)
+        );
+      if (errors.length === 0) {
+        return "No error details found for this orphaned interchange.";
       }
-    }
+      const text = errors.map(formatErrorDetail).join("\n\n");
+      return text;
+    })
   );
 
   // 5. get_orphaned_interchange_events
@@ -308,39 +251,21 @@ export function registerOrphanedInterchangeTools(
           ),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const events =
-          await context.odataClient.getCollection<BusinessDocumentProcessingEvent>(
-            buildOrphanedInterchangeEventsPath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        if (events.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No processing events found for this orphaned interchange.",
-              },
-            ],
-          };
-        }
-        const text = events.map(formatEvent).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, select, expand }) => {
+      const events =
+        await context.odataClient.getCollection<BusinessDocumentProcessingEvent>(
+          buildOrphanedInterchangeEventsPath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      if (events.length === 0) {
+        return "No processing events found for this orphaned interchange.";
       }
-    }
+      const text = events.map(formatEvent).join("\n\n");
+      return text;
+    })
   );
 
   // 6. get_orphaned_interchange_payloads
@@ -368,39 +293,21 @@ export function registerOrphanedInterchangeTools(
           ),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const payloads =
-          await context.odataClient.getCollection<BusinessDocumentPayload>(
-            buildOrphanedInterchangePayloadsPath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        if (payloads.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No payloads found for this orphaned interchange.",
-              },
-            ],
-          };
-        }
-        const text = payloads.map(formatPayload).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, select, expand }) => {
+      const payloads =
+        await context.odataClient.getCollection<BusinessDocumentPayload>(
+          buildOrphanedInterchangePayloadsPath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      if (payloads.length === 0) {
+        return "No payloads found for this orphaned interchange.";
       }
-    }
+      const text = payloads.map(formatPayload).join("\n\n");
+      return text;
+    })
   );
 
   // 7. get_orphaned_interchange_headers
@@ -426,38 +333,20 @@ export function registerOrphanedInterchangeTools(
           ),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const headers =
-          await context.odataClient.getCollection<BusinessDocumentProtocolHeader>(
-            buildOrphanedInterchangeHeadersPath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        if (headers.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No protocol headers found for this orphaned interchange.",
-              },
-            ],
-          };
-        }
-        const text = headers.map(formatHeader).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, select, expand }) => {
+      const headers =
+        await context.odataClient.getCollection<BusinessDocumentProtocolHeader>(
+          buildOrphanedInterchangeHeadersPath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      if (headers.length === 0) {
+        return "No protocol headers found for this orphaned interchange.";
       }
-    }
+      const text = headers.map(formatHeader).join("\n\n");
+      return text;
+    })
   );
 }

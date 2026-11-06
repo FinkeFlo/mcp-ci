@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type {
   BusinessDocument,
   BusinessDocumentProcessingEvent,
@@ -183,41 +184,26 @@ export function registerBusinessDocumentTools(
           .describe("Set to 'allpages' to include total count in response"),
       }),
     },
-    async ({ filter, orderby, select, expand, top, skip, inlinecount }) => {
-      try {
-        const docs =
-          await context.odataClient.getCollection<BusinessDocument>(
-            buildBusinessDocumentsPath(),
-            {
-              $filter: filter,
-              $orderby: orderby,
-              $select: select,
-              $expand: expand,
-              $top: top,
-              $skip: skip,
-              $inlinecount: inlinecount,
-            }
-          );
-        if (docs.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No business documents found." },
-            ],
-          };
-        }
-        const text = docs.map(formatBusinessDocument).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ filter, orderby, select, expand, top, skip, inlinecount }) => {
+      const docs =
+        await context.odataClient.getCollection<BusinessDocument>(
+          buildBusinessDocumentsPath(),
+          {
+            $filter: filter,
+            $orderby: orderby,
+            $select: select,
+            $expand: expand,
+            $top: top,
+            $skip: skip,
+            $inlinecount: inlinecount,
+          }
+        );
+      if (docs.length === 0) {
+        return "No business documents found.";
       }
-    }
+      const text = docs.map(formatBusinessDocument).join("\n\n");
+      return text;
+    })
   );
 
   // 2. get_business_document
@@ -239,29 +225,18 @@ export function registerBusinessDocumentTools(
           .describe("OData $expand navigation properties"),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const doc =
-          await context.odataClient.getEntity<BusinessDocument>(
-            buildBusinessDocumentPath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        const text = formatBusinessDocument(doc);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id, select, expand }) => {
+      const doc =
+        await context.odataClient.getEntity<BusinessDocument>(
+          buildBusinessDocumentPath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      const text = formatBusinessDocument(doc);
+      return text;
+    })
   );
 
   // 3. count_business_documents
@@ -278,24 +253,13 @@ export function registerBusinessDocumentTools(
           .describe("OData $filter expression, e.g. \"ProcessingStatus eq 'ERROR'\""),
       }),
     },
-    async ({ filter }) => {
-      try {
-        const path = filter
-          ? `${buildBusinessDocumentsCountPath()}?$filter=${encodeURIComponent(filter)}`
-          : buildBusinessDocumentsCountPath();
-        const count = await context.odataClient.getValue(path);
-        return {
-          content: [{ type: "text" as const, text: count }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ filter }) => {
+      const path = filter
+        ? `${buildBusinessDocumentsCountPath()}?$filter=${encodeURIComponent(filter)}`
+        : buildBusinessDocumentsCountPath();
+      const count = await context.odataClient.getValue(path);
+      return count;
+    })
   );
 
   // 4. get_sender_technical_ack
@@ -317,29 +281,18 @@ export function registerBusinessDocumentTools(
           .describe("OData $expand navigation properties"),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const ack =
-          await context.odataClient.getEntity<TechnicalAcknowledgement>(
-            buildBusinessDocSenderTechAckPath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        const text = formatTechnicalAck(ack);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id, select, expand }) => {
+      const ack =
+        await context.odataClient.getEntity<TechnicalAcknowledgement>(
+          buildBusinessDocSenderTechAckPath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      const text = formatTechnicalAck(ack);
+      return text;
+    })
   );
 
   // 5. get_receiver_technical_ack
@@ -361,29 +314,18 @@ export function registerBusinessDocumentTools(
           .describe("OData $expand navigation properties"),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const ack =
-          await context.odataClient.getEntity<TechnicalAcknowledgement>(
-            buildBusinessDocReceiverTechAckPath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        const text = formatTechnicalAck(ack);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id, select, expand }) => {
+      const ack =
+        await context.odataClient.getEntity<TechnicalAcknowledgement>(
+          buildBusinessDocReceiverTechAckPath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      const text = formatTechnicalAck(ack);
+      return text;
+    })
   );
 
   // 6. get_sender_functional_ack
@@ -405,29 +347,18 @@ export function registerBusinessDocumentTools(
           .describe("OData $expand navigation properties"),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const ack =
-          await context.odataClient.getEntity<FunctionalAcknowledgement>(
-            buildBusinessDocSenderFuncAckPath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        const text = formatFunctionalAck(ack);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id, select, expand }) => {
+      const ack =
+        await context.odataClient.getEntity<FunctionalAcknowledgement>(
+          buildBusinessDocSenderFuncAckPath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      const text = formatFunctionalAck(ack);
+      return text;
+    })
   );
 
   // 7. get_receiver_functional_ack
@@ -449,29 +380,18 @@ export function registerBusinessDocumentTools(
           .describe("OData $expand navigation properties"),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const ack =
-          await context.odataClient.getEntity<FunctionalAcknowledgement>(
-            buildBusinessDocReceiverFuncAckPath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        const text = formatFunctionalAck(ack);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id, select, expand }) => {
+      const ack =
+        await context.odataClient.getEntity<FunctionalAcknowledgement>(
+          buildBusinessDocReceiverFuncAckPath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      const text = formatFunctionalAck(ack);
+      return text;
+    })
   );
 
   // 8. get_business_document_events
@@ -493,36 +413,21 @@ export function registerBusinessDocumentTools(
           .describe("OData $expand navigation properties"),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const events =
-          await context.odataClient.getCollection<BusinessDocumentProcessingEvent>(
-            buildBusinessDocEventsPath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        if (events.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No processing events found." },
-            ],
-          };
-        }
-        const text = events.map(formatEvent).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, select, expand }) => {
+      const events =
+        await context.odataClient.getCollection<BusinessDocumentProcessingEvent>(
+          buildBusinessDocEventsPath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      if (events.length === 0) {
+        return "No processing events found.";
       }
-    }
+      const text = events.map(formatEvent).join("\n\n");
+      return text;
+    })
   );
 
   // 9. get_business_document_payloads
@@ -544,36 +449,21 @@ export function registerBusinessDocumentTools(
           .describe("OData $expand navigation properties"),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const payloads =
-          await context.odataClient.getCollection<BusinessDocumentPayload>(
-            buildBusinessDocPayloadsPath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        if (payloads.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No payloads found." },
-            ],
-          };
-        }
-        const text = payloads.map(formatPayload).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, select, expand }) => {
+      const payloads =
+        await context.odataClient.getCollection<BusinessDocumentPayload>(
+          buildBusinessDocPayloadsPath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      if (payloads.length === 0) {
+        return "No payloads found.";
       }
-    }
+      const text = payloads.map(formatPayload).join("\n\n");
+      return text;
+    })
   );
 
   // 10. download_business_document_payload
@@ -587,30 +477,15 @@ export function registerBusinessDocumentTools(
         payloadId: z.string().describe("The payload ID"),
       }),
     },
-    async ({ payloadId }) => {
-      try {
-        const content = await context.odataClient.getValue(
-          buildBusinessDocPayloadValuePath(payloadId)
-        );
-        if (!content) {
-          return {
-            content: [
-              { type: "text" as const, text: "No payload content available." },
-            ],
-          };
-        }
-        return {
-          content: [{ type: "text" as const, text: content }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ payloadId }) => {
+      const content = await context.odataClient.getValue(
+        buildBusinessDocPayloadValuePath(payloadId)
+      );
+      if (!content) {
+        return "No payload content available.";
       }
-    }
+      return content;
+    })
   );
 
   // 11. get_business_document_notes
@@ -632,36 +507,21 @@ export function registerBusinessDocumentTools(
           .describe("OData $expand navigation properties"),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const notes =
-          await context.odataClient.getCollection<BusinessDocumentNote>(
-            buildBusinessDocNotesPath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        if (notes.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No notes found." },
-            ],
-          };
-        }
-        const text = notes.map(formatNote).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, select, expand }) => {
+      const notes =
+        await context.odataClient.getCollection<BusinessDocumentNote>(
+          buildBusinessDocNotesPath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      if (notes.length === 0) {
+        return "No notes found.";
       }
-    }
+      const text = notes.map(formatNote).join("\n\n");
+      return text;
+    })
   );
 
   // 12. get_business_document_custom_objects
@@ -683,36 +543,21 @@ export function registerBusinessDocumentTools(
           .describe("OData $expand navigation properties"),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const attrs =
-          await context.odataClient.getCollection<CustomSearchAttribute>(
-            buildBusinessDocCustomObjectsPath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        if (attrs.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No custom search attributes found." },
-            ],
-          };
-        }
-        const text = attrs.map(formatCustomSearchAttribute).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, select, expand }) => {
+      const attrs =
+        await context.odataClient.getCollection<CustomSearchAttribute>(
+          buildBusinessDocCustomObjectsPath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      if (attrs.length === 0) {
+        return "No custom search attributes found.";
       }
-    }
+      const text = attrs.map(formatCustomSearchAttribute).join("\n\n");
+      return text;
+    })
   );
 
   // 13. get_business_document_ext_fields
@@ -734,36 +579,21 @@ export function registerBusinessDocumentTools(
           .describe("OData $expand navigation properties"),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const fields =
-          await context.odataClient.getCollection<BusinessDocumentExtField>(
-            buildBusinessDocExtFieldsPath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        if (fields.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No extended fields found." },
-            ],
-          };
-        }
-        const text = fields.map(formatExtField).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, select, expand }) => {
+      const fields =
+        await context.odataClient.getCollection<BusinessDocumentExtField>(
+          buildBusinessDocExtFieldsPath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      if (fields.length === 0) {
+        return "No extended fields found.";
       }
-    }
+      const text = fields.map(formatExtField).join("\n\n");
+      return text;
+    })
   );
 
   // 14. get_business_document_last_error
@@ -785,36 +615,21 @@ export function registerBusinessDocumentTools(
           .describe("OData $expand navigation properties"),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const errors =
-          await context.odataClient.getCollection<ErrorDetail>(
-            buildBusinessDocLastErrorPath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        if (errors.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No error details found." },
-            ],
-          };
-        }
-        const text = errors.map(formatErrorDetail).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, select, expand }) => {
+      const errors =
+        await context.odataClient.getCollection<ErrorDetail>(
+          buildBusinessDocLastErrorPath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      if (errors.length === 0) {
+        return "No error details found.";
       }
-    }
+      const text = errors.map(formatErrorDetail).join("\n\n");
+      return text;
+    })
   );
 
   // 15. get_business_document_headers
@@ -836,36 +651,21 @@ export function registerBusinessDocumentTools(
           .describe("OData $expand navigation properties"),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const headers =
-          await context.odataClient.getCollection<BusinessDocumentProtocolHeader>(
-            buildBusinessDocHeadersPath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        if (headers.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No protocol headers found." },
-            ],
-          };
-        }
-        const text = headers.map(formatHeader).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, select, expand }) => {
+      const headers =
+        await context.odataClient.getCollection<BusinessDocumentProtocolHeader>(
+          buildBusinessDocHeadersPath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      if (headers.length === 0) {
+        return "No protocol headers found.";
       }
-    }
+      const text = headers.map(formatHeader).join("\n\n");
+      return text;
+    })
   );
 
   // 16. get_technical_acknowledgement
@@ -887,29 +687,18 @@ export function registerBusinessDocumentTools(
           .describe("OData $expand navigation properties"),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const ack =
-          await context.odataClient.getEntity<TechnicalAcknowledgement>(
-            buildTechnicalAckPath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        const text = formatTechnicalAck(ack);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id, select, expand }) => {
+      const ack =
+        await context.odataClient.getEntity<TechnicalAcknowledgement>(
+          buildTechnicalAckPath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      const text = formatTechnicalAck(ack);
+      return text;
+    })
   );
 
   // 17. download_technical_acknowledgement
@@ -923,30 +712,15 @@ export function registerBusinessDocumentTools(
         id: z.string().describe("The technical acknowledgement ID"),
       }),
     },
-    async ({ id }) => {
-      try {
-        const content = await context.odataClient.getValue(
-          buildTechnicalAckValuePath(id)
-        );
-        if (!content) {
-          return {
-            content: [
-              { type: "text" as const, text: "No acknowledgement content available." },
-            ],
-          };
-        }
-        return {
-          content: [{ type: "text" as const, text: content }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id }) => {
+      const content = await context.odataClient.getValue(
+        buildTechnicalAckValuePath(id)
+      );
+      if (!content) {
+        return "No acknowledgement content available.";
       }
-    }
+      return content;
+    })
   );
 
   // 18. get_functional_acknowledgement
@@ -968,29 +742,18 @@ export function registerBusinessDocumentTools(
           .describe("OData $expand navigation properties"),
       }),
     },
-    async ({ id, select, expand }) => {
-      try {
-        const ack =
-          await context.odataClient.getEntity<FunctionalAcknowledgement>(
-            buildFunctionalAckPath(id),
-            {
-              $select: select,
-              $expand: expand,
-            }
-          );
-        const text = formatFunctionalAck(ack);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id, select, expand }) => {
+      const ack =
+        await context.odataClient.getEntity<FunctionalAcknowledgement>(
+          buildFunctionalAckPath(id),
+          {
+            $select: select,
+            $expand: expand,
+          }
+        );
+      const text = formatFunctionalAck(ack);
+      return text;
+    })
   );
 
   // 19. download_functional_acknowledgement
@@ -1004,29 +767,14 @@ export function registerBusinessDocumentTools(
         id: z.string().describe("The functional acknowledgement ID"),
       }),
     },
-    async ({ id }) => {
-      try {
-        const content = await context.odataClient.getValue(
-          buildFunctionalAckValuePath(id)
-        );
-        if (!content) {
-          return {
-            content: [
-              { type: "text" as const, text: "No acknowledgement content available." },
-            ],
-          };
-        }
-        return {
-          content: [{ type: "text" as const, text: content }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id }) => {
+      const content = await context.odataClient.getValue(
+        buildFunctionalAckValuePath(id)
+      );
+      if (!content) {
+        return "No acknowledgement content available.";
       }
-    }
+      return content;
+    })
   );
 }
