@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { Module, ModuleContext } from "../../core/types.js";
+import { textTool } from "../../core/tool.js";
 import type { GenericIdempotentRepositoryEntry, IdempotentRepositoryEntry } from "./types.js";
 import { buildEntriesPath, buildEntryPath, buildSimpleEntriesPath, buildSimpleEntryPath } from "./queries.js";
 
@@ -38,38 +39,22 @@ export const idempotentModule: Module = {
           id: z.string().describe("The Entry ID to look up (plaintext)"),
         }),
       },
-      async ({ id }) => {
-        try {
-          const entries =
-            await context.odataClient.getCollection<GenericIdempotentRepositoryEntry>(
-              buildEntriesPath(id)
-            );
+      textTool(async ({ id }) => {
+        const entries =
+          await context.odataClient.getCollection<GenericIdempotentRepositoryEntry>(
+            buildEntriesPath(id)
+          );
 
-          if (entries.length === 0) {
-            return {
-              content: [{ type: "text" as const, text: "No entries found." }],
-            };
-          }
-
-          const output = entries
-            .map((e, i) => `[Entry ${i + 1}]\n${formatEntry(e)}`)
-            .join("\n\n");
-
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `${entries.length} entry/entries found:\n\n${output}`,
-              },
-            ],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [{ type: "text" as const, text: (error as Error).message }],
-          };
+        if (entries.length === 0) {
+          return "No entries found.";
         }
-      }
+
+        const output = entries
+          .map((e, i) => `[Entry ${i + 1}]\n${formatEntry(e)}`)
+          .join("\n\n");
+
+        return `${entries.length} entry/entries found:\n\n${output}`;
+      })
     );
 
     // @api GET /GenericIdempotentRepositoryEntries(HexVendor='{HexVendor}',HexSource='{HexSource}',HexEntry='{HexEntry}',HexComponent='{HexComponent}')
@@ -85,28 +70,14 @@ export const idempotentModule: Module = {
           component: z.string().describe("The Component (plaintext)"),
         }),
       },
-      async ({ vendor, source, entry, component }) => {
-        try {
-          const e =
-            await context.odataClient.getEntity<GenericIdempotentRepositoryEntry>(
-              buildEntryPath(vendor, source, entry, component)
-            );
+      textTool(async ({ vendor, source, entry, component }) => {
+        const e =
+          await context.odataClient.getEntity<GenericIdempotentRepositoryEntry>(
+            buildEntryPath(vendor, source, entry, component)
+          );
 
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Idempotent Repository Entry:\n${formatEntry(e)}`,
-              },
-            ],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [{ type: "text" as const, text: (error as Error).message }],
-          };
-        }
-      }
+        return `Idempotent Repository Entry:\n${formatEntry(e)}`;
+      })
     );
 
     // @api GET /IdempotentRepositoryEntries
@@ -119,38 +90,22 @@ export const idempotentModule: Module = {
           id: z.string().describe("The Entry ID to look up (plaintext)"),
         }),
       },
-      async ({ id }) => {
-        try {
-          const entries =
-            await context.odataClient.getCollection<IdempotentRepositoryEntry>(
-              buildSimpleEntriesPath(id)
-            );
+      textTool(async ({ id }) => {
+        const entries =
+          await context.odataClient.getCollection<IdempotentRepositoryEntry>(
+            buildSimpleEntriesPath(id)
+          );
 
-          if (entries.length === 0) {
-            return {
-              content: [{ type: "text" as const, text: "No entries found." }],
-            };
-          }
-
-          const output = entries
-            .map((e, i) => `[Entry ${i + 1}]\n${formatSimpleEntry(e)}`)
-            .join("\n\n");
-
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `${entries.length} entry/entries found:\n\n${output}`,
-              },
-            ],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [{ type: "text" as const, text: (error as Error).message }],
-          };
+        if (entries.length === 0) {
+          return "No entries found.";
         }
-      }
+
+        const output = entries
+          .map((e, i) => `[Entry ${i + 1}]\n${formatSimpleEntry(e)}`)
+          .join("\n\n");
+
+        return `${entries.length} entry/entries found:\n\n${output}`;
+      })
     );
 
     // @api GET /IdempotentRepositoryEntries(HexSource='{HexSource}',HexEntry='{HexEntry}')
@@ -164,28 +119,14 @@ export const idempotentModule: Module = {
           entry: z.string().describe("The Entry ID (plaintext), e.g. InputFolder/file.xml for SFTP or XI message ID"),
         }),
       },
-      async ({ source, entry }) => {
-        try {
-          const e =
-            await context.odataClient.getEntity<IdempotentRepositoryEntry>(
-              buildSimpleEntryPath(source, entry)
-            );
+      textTool(async ({ source, entry }) => {
+        const e =
+          await context.odataClient.getEntity<IdempotentRepositoryEntry>(
+            buildSimpleEntryPath(source, entry)
+          );
 
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Idempotent Repository Entry:\n${formatSimpleEntry(e)}`,
-              },
-            ],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [{ type: "text" as const, text: (error as Error).message }],
-          };
-        }
-      }
+        return `Idempotent Repository Entry:\n${formatSimpleEntry(e)}`;
+      })
     );
 
     // @api DELETE /IdempotentRepositoryEntries(HexSource='{HexSource}',HexEntry='{HexEntry}')
@@ -203,48 +144,21 @@ export const idempotentModule: Module = {
             .describe("Set to true to confirm deletion"),
         }),
       },
-      async ({ source, entry, confirm }) => {
+      textTool(async ({ source, entry, confirm }) => {
         const path = buildSimpleEntryPath(source, entry);
 
         if (!confirm) {
-          try {
-            const e =
-              await context.odataClient.getEntity<IdempotentRepositoryEntry>(
-                path
-              );
+          const e =
+            await context.odataClient.getEntity<IdempotentRepositoryEntry>(
+              path
+            );
 
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: `Entry to be deleted:\n${formatSimpleEntry(e)}\n\nCall again with confirm: true to delete.`,
-                },
-              ],
-            };
-          } catch (error) {
-            return {
-              isError: true,
-              content: [
-                { type: "text" as const, text: (error as Error).message },
-              ],
-            };
-          }
+          return `Entry to be deleted:\n${formatSimpleEntry(e)}\n\nCall again with confirm: true to delete.`;
         }
 
-        try {
-          await context.odataClient.delete(path);
-          return {
-            content: [
-              { type: "text" as const, text: "Entry deleted successfully." },
-            ],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [{ type: "text" as const, text: (error as Error).message }],
-          };
-        }
-      }
+        await context.odataClient.delete(path);
+        return "Entry deleted successfully.";
+      })
     );
 
     // @api DELETE /GenericIdempotentRepositoryEntries(HexVendor='{HexVendor}',HexSource='{HexSource}',HexEntry='{HexEntry}',HexComponent='{HexComponent}')
@@ -264,48 +178,21 @@ export const idempotentModule: Module = {
             .describe("Set to true to confirm deletion"),
         }),
       },
-      async ({ vendor, source, entry, component, confirm }) => {
+      textTool(async ({ vendor, source, entry, component, confirm }) => {
         const path = buildEntryPath(vendor, source, entry, component);
 
         if (!confirm) {
-          try {
-            const e =
-              await context.odataClient.getEntity<GenericIdempotentRepositoryEntry>(
-                path
-              );
+          const e =
+            await context.odataClient.getEntity<GenericIdempotentRepositoryEntry>(
+              path
+            );
 
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: `Entry to be deleted:\n${formatEntry(e)}\n\nCall again with confirm: true to delete.`,
-                },
-              ],
-            };
-          } catch (error) {
-            return {
-              isError: true,
-              content: [
-                { type: "text" as const, text: (error as Error).message },
-              ],
-            };
-          }
+          return `Entry to be deleted:\n${formatEntry(e)}\n\nCall again with confirm: true to delete.`;
         }
 
-        try {
-          await context.odataClient.delete(path);
-          return {
-            content: [
-              { type: "text" as const, text: "Entry deleted successfully." },
-            ],
-          };
-        } catch (error) {
-          return {
-            isError: true,
-            content: [{ type: "text" as const, text: (error as Error).message }],
-          };
-        }
-      }
+        await context.odataClient.delete(path);
+        return "Entry deleted successfully.";
+      })
     );
   },
 };
