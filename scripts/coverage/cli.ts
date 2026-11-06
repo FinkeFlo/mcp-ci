@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseSpecs } from "./specs.js";
@@ -39,6 +39,13 @@ function renderMarkdown(report: CoverageReport): string {
     out.push("");
   }
   return out.join("\n");
+}
+
+if (!existsSync(specDir) || !readdirSync(specDir).some((f) => f.endsWith(".yaml"))) {
+  process.stderr.write(
+    `No SAP API specs found in ${specDir}.\nDownload them from https://api.sap.com/package/CloudIntegrationAPI/odata — see docs/api/README.md.\n`,
+  );
+  process.exit(1);
 }
 
 const operations = parseSpecs(specDir);

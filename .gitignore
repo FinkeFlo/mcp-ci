@@ -6,3 +6,6 @@ output/
 .DS_Store
 .tmp/
 coverage-report.json
+
+# SAP API specs (download from api.sap.com, see docs/api/README.md)
+docs/api/*.yaml
