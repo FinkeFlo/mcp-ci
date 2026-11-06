@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type { DataStore, DataStoreEntry } from "../types.js";
 import {
   buildDataStoresPath,
@@ -55,35 +56,20 @@ export function registerDataStoreTools(
           ),
       }),
     },
-    async ({ overdueonly }) => {
-      try {
-        let path = buildDataStoresPath();
-        if (overdueonly) {
-          path += `?overdueonly=${overdueonly}`;
-        }
-        const stores = await context.odataClient.getCollection<DataStore>(
-          path
-        );
-        if (stores.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: "No data stores found." },
-            ],
-          };
-        }
-        const text = stores.map(formatDataStore).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ overdueonly }) => {
+      let path = buildDataStoresPath();
+      if (overdueonly) {
+        path += `?overdueonly=${overdueonly}`;
       }
-    }
+      const stores = await context.odataClient.getCollection<DataStore>(
+        path
+      );
+      if (stores.length === 0) {
+        return "No data stores found.";
+      }
+      const text = stores.map(formatDataStore).join("\n\n");
+      return text;
+    })
   );
 
   // @api GET /DataStores(DataStoreName='{DataStoreName}',IntegrationFlow='{IntegrationFlowId}',Type='{Type}')
@@ -104,24 +90,13 @@ export function registerDataStoreTools(
           ),
       }),
     },
-    async ({ dataStoreName, integrationFlow, type }) => {
-      try {
-        const ds = await context.odataClient.getEntity<DataStore>(
-          buildDataStorePath(dataStoreName, integrationFlow, type)
-        );
-        const text = formatDataStore(ds);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ dataStoreName, integrationFlow, type }) => {
+      const ds = await context.odataClient.getEntity<DataStore>(
+        buildDataStorePath(dataStoreName, integrationFlow, type)
+      );
+      const text = formatDataStore(ds);
+      return text;
+    })
   );
 
   // @api GET /DataStores(DataStoreName='{DataStoreName}',IntegrationFlow='{IntegrationFlowId}',Type='{Type}')
@@ -145,43 +120,20 @@ export function registerDataStoreTools(
           .describe("Set to true to actually delete the data store"),
       }),
     },
-    async ({ dataStoreName, integrationFlow, type, confirm }) => {
-      try {
-        const path = buildDataStorePath(
-          dataStoreName,
-          integrationFlow,
-          type
-        );
-        if (!confirm) {
-          const ds = await context.odataClient.getEntity<DataStore>(path);
-          const preview = formatDataStore(ds);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Data store to delete:\n\n${preview}\n\nSet confirm to true to proceed.`,
-              },
-            ],
-          };
-        }
-        await context.odataClient.delete(path);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Data store '${dataStoreName}' deleted successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ dataStoreName, integrationFlow, type, confirm }) => {
+      const path = buildDataStorePath(
+        dataStoreName,
+        integrationFlow,
+        type
+      );
+      if (!confirm) {
+        const ds = await context.odataClient.getEntity<DataStore>(path);
+        const preview = formatDataStore(ds);
+        return `Data store to delete:\n\n${preview}\n\nSet confirm to true to proceed.`;
       }
-    }
+      await context.odataClient.delete(path);
+      return `Data store '${dataStoreName}' deleted successfully.`;
+    })
   );
 
   // @api GET /DataStoreEntries
@@ -203,38 +155,20 @@ export function registerDataStoreTools(
           .describe("Filter entries by message processing log ID"),
       }),
     },
-    async ({ overdueonly, messageid }) => {
-      try {
-        let path = buildDataStoreEntriesPath();
-        const params: string[] = [];
-        if (overdueonly) params.push(`overdueonly=${overdueonly}`);
-        if (messageid) params.push(`messageid=${encodeURIComponent(messageid)}`);
-        if (params.length > 0) path += `?${params.join("&")}`;
-        const entries =
-          await context.odataClient.getCollection<DataStoreEntry>(path);
-        if (entries.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No data store entries found.",
-              },
-            ],
-          };
-        }
-        const text = entries.map(formatDataStoreEntry).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ overdueonly, messageid }) => {
+      let path = buildDataStoreEntriesPath();
+      const params: string[] = [];
+      if (overdueonly) params.push(`overdueonly=${overdueonly}`);
+      if (messageid) params.push(`messageid=${encodeURIComponent(messageid)}`);
+      if (params.length > 0) path += `?${params.join("&")}`;
+      const entries =
+        await context.odataClient.getCollection<DataStoreEntry>(path);
+      if (entries.length === 0) {
+        return "No data store entries found.";
       }
-    }
+      const text = entries.map(formatDataStoreEntry).join("\n\n");
+      return text;
+    })
   );
 
   // @api GET /DataStores(DataStoreName='{DataStoreName}',IntegrationFlow='{IntegrationFlowId}',Type='{Type}')/Entries
@@ -253,39 +187,21 @@ export function registerDataStoreTools(
           .describe("Type of the data store"),
       }),
     },
-    async ({ dataStoreName, integrationFlow, type }) => {
-      try {
-        const entries =
-          await context.odataClient.getCollection<DataStoreEntry>(
-            buildDataStoreEntriesByStorePath(
-              dataStoreName,
-              integrationFlow,
-              type
-            )
-          );
-        if (entries.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No data store entries found.",
-              },
-            ],
-          };
-        }
-        const text = entries.map(formatDataStoreEntry).join("\n\n");
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ dataStoreName, integrationFlow, type }) => {
+      const entries =
+        await context.odataClient.getCollection<DataStoreEntry>(
+          buildDataStoreEntriesByStorePath(
+            dataStoreName,
+            integrationFlow,
+            type
+          )
+        );
+      if (entries.length === 0) {
+        return "No data store entries found.";
       }
-    }
+      const text = entries.map(formatDataStoreEntry).join("\n\n");
+      return text;
+    })
   );
 
   // @api GET /DataStoreEntries(Id='{Id}',DataStoreName='{DataStoreName}',IntegrationFlow='{IntegrationFlowId}',Type='{Type}')
@@ -305,24 +221,13 @@ export function registerDataStoreTools(
           .describe("Type of the data store"),
       }),
     },
-    async ({ id, dataStoreName, integrationFlow, type }) => {
-      try {
-        const entry = await context.odataClient.getEntity<DataStoreEntry>(
-          buildDataStoreEntryPath(id, dataStoreName, integrationFlow, type)
-        );
-        const text = formatDataStoreEntry(entry);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ id, dataStoreName, integrationFlow, type }) => {
+      const entry = await context.odataClient.getEntity<DataStoreEntry>(
+        buildDataStoreEntryPath(id, dataStoreName, integrationFlow, type)
+      );
+      const text = formatDataStoreEntry(entry);
+      return text;
+    })
   );
 
   // @api GET /DataStoreEntries(Id='{Id}',DataStoreName='{DataStoreName}',IntegrationFlow='{IntegrationFlowId}',Type='{Type}')
@@ -347,45 +252,22 @@ export function registerDataStoreTools(
           .describe("Set to true to actually delete the entry"),
       }),
     },
-    async ({ id, dataStoreName, integrationFlow, type, confirm }) => {
-      try {
-        const path = buildDataStoreEntryPath(
-          id,
-          dataStoreName,
-          integrationFlow,
-          type
-        );
-        if (!confirm) {
-          const entry =
-            await context.odataClient.getEntity<DataStoreEntry>(path);
-          const preview = formatDataStoreEntry(entry);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Data store entry to delete:\n\n${preview}\n\nSet confirm to true to proceed.`,
-              },
-            ],
-          };
-        }
-        await context.odataClient.delete(path);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Data store entry '${id}' deleted successfully.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, dataStoreName, integrationFlow, type, confirm }) => {
+      const path = buildDataStoreEntryPath(
+        id,
+        dataStoreName,
+        integrationFlow,
+        type
+      );
+      if (!confirm) {
+        const entry =
+          await context.odataClient.getEntity<DataStoreEntry>(path);
+        const preview = formatDataStoreEntry(entry);
+        return `Data store entry to delete:\n\n${preview}\n\nSet confirm to true to proceed.`;
       }
-    }
+      await context.odataClient.delete(path);
+      return `Data store entry '${id}' deleted successfully.`;
+    })
   );
 
   // @api GET /DataStoreEntries(Id='{Id}',DataStoreName='{DataStoreName}',IntegrationFlow='{IntegrationFlowId}',Type='{Type}')/$value
@@ -405,37 +287,19 @@ export function registerDataStoreTools(
           .describe("Type of the data store"),
       }),
     },
-    async ({ id, dataStoreName, integrationFlow, type }) => {
-      try {
-        const content = await context.odataClient.getValue(
-          buildDataStoreEntryValuePath(
-            id,
-            dataStoreName,
-            integrationFlow,
-            type
-          )
-        );
-        if (!content) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No content available.",
-              },
-            ],
-          };
-        }
-        return {
-          content: [{ type: "text" as const, text: content }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
+    textTool(async ({ id, dataStoreName, integrationFlow, type }) => {
+      const content = await context.odataClient.getValue(
+        buildDataStoreEntryValuePath(
+          id,
+          dataStoreName,
+          integrationFlow,
+          type
+        )
+      );
+      if (!content) {
+        return "No content available.";
       }
-    }
+      return content;
+    })
   );
 }

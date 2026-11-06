@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext } from "../../../core/types.js";
+import { textTool } from "../../../core/tool.js";
 import type { JmsBroker } from "../types.js";
 import { buildJmsBrokerPath } from "../queries.js";
 
@@ -39,24 +40,13 @@ export function registerJmsTools(server: McpServer, context: ModuleContext) {
           .describe("Expand related entities (QueueStates or InactiveQueues)"),
       }),
     },
-    async ({ expand }) => {
-      try {
-        const broker = await context.odataClient.getEntity<JmsBroker>(
-          buildJmsBrokerPath(),
-          expand ? { $expand: expand } : undefined
-        );
-        const text = formatBroker(broker);
-        return {
-          content: [{ type: "text" as const, text }],
-        };
-      } catch (error) {
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: (error as Error).message },
-          ],
-        };
-      }
-    }
+    textTool(async ({ expand }) => {
+      const broker = await context.odataClient.getEntity<JmsBroker>(
+        buildJmsBrokerPath(),
+        expand ? { $expand: expand } : undefined
+      );
+      const text = formatBroker(broker);
+      return text;
+    })
   );
 }
