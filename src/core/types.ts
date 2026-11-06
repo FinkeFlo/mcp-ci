@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { TenantManager } from "./tenant-manager.js";
 import type { ODataClient } from "./odata-client.js";
 

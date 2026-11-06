@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { Module, ModuleContext } from "../../core/types.js";
 import { registerOrphanedInterchangeTools } from "./tools/orphaned-interchanges.js";
 import { registerBusinessDocumentTools } from "./tools/business-documents.js";
