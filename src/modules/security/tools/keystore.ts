@@ -210,6 +210,9 @@ export function registerKeystoreTools(
           failures.push(`Keystore ${keystore} could not be read: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
+      if (failures.length === keystores.length) {
+        throw new Error(failures.join("\n"));
+      }
       const format = ({ keystore, e }: { keystore: string; e: KeystoreEntry }) =>
         `${all ? `Keystore: ${keystore}\n` : ""}${formatKeystoreEntrySummary(e)}`;
       const withFailures = (text: string) => [text, ...failures].join("\n\n");
@@ -225,11 +228,12 @@ export function registerKeystoreTools(
         // An entry with a date that cannot be read might be expired; never drop
         // it silently. An entry without any date has no expiry.
         const unknown = dated.filter((x) => x.end === null && x.e.ValidNotAfter);
-        if (expiring.length === 0 && unknown.length === 0) {
-          return withFailures(`No keystore entries expire within ${expiringWithinDays} day(s).`);
-        }
         const soon = expiring.filter((x) => x.end >= now).length;
-        const summary = `${includeExpired === false ? 0 : expired.length} expired, ${soon} expiring within ${expiringWithinDays} day(s)${unknown.length ? `, ${unknown.length} with unreadable expiry` : ""}`;
+        const hidden = includeExpired === false && expired.length > 0 ? " (not listed)" : "";
+        const summary = `${expired.length} expired${hidden}, ${soon} expiring within ${expiringWithinDays} day(s)${unknown.length ? `, ${unknown.length} with unreadable expiry` : ""}`;
+        if (expiring.length === 0 && unknown.length === 0) {
+          return withFailures(`${summary}\n\nNo keystore entries expire within ${expiringWithinDays} day(s).`);
+        }
         return withFailures(
           [
             summary,

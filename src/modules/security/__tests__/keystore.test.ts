@@ -198,7 +198,7 @@ describe("keystore tools", () => {
     it("includeExpired: false leaves expired entries out", async () => {
       mockODataClient.getCollection.mockResolvedValue([inDays("old", -3.5), inDays("soon", 10.5)]);
       const text = (await handlers.get("list_keystore_entries")!({ keystoreName: "system", expiringWithinDays: 60, includeExpired: false })).content[0].text;
-      expect(text.split("\n")[0]).toBe("0 expired, 1 expiring within 60 day(s)");
+      expect(text.split("\n")[0]).toBe("1 expired (not listed), 1 expiring within 60 day(s)");
       expect(text).toContain("Alias: soon");
       expect(text).not.toContain("Alias: old");
     });
@@ -215,6 +215,19 @@ describe("keystore tools", () => {
       expect(text).toContain("Keystore: system\nHexalias: sys_cert");
       expect(text.indexOf("backup_cert")).toBeLessThan(text.indexOf("sys_cert"));
       expect(text).toContain("Keystore KeyRenewal could not be read: OData error (404)");
+    });
+
+    it("keeps the summary first when nothing is listed", async () => {
+      mockODataClient.getCollection.mockResolvedValue([inDays("old", -3.5), inDays("far", 400)]);
+      const text = (await handlers.get("list_keystore_entries")!({ keystoreName: "system", expiringWithinDays: 30, includeExpired: false })).content[0].text;
+      expect(text).toBe("1 expired (not listed), 0 expiring within 30 day(s)\n\nNo keystore entries expire within 30 day(s).");
+    });
+
+    it("keystoreName all is an error when no keystore can be read", async () => {
+      mockODataClient.getCollection.mockRejectedValue(new Error("OData error (401): unauthorized"));
+      const result = await handlers.get("list_keystore_entries")!({ keystoreName: "all" });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("401");
     });
 
     it("reports when nothing expires within the window", async () => {
