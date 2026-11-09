@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { readFileSync } from "node:fs";
 import { InMemoryTransport, type JSONRPCMessage } from "@modelcontextprotocol/server";
 import { buildServer } from "../server.js";
 import { classifyTool } from "../core/tool-access.js";
@@ -40,7 +41,7 @@ async function connect() {
       pending.set(id, resolve);
       void clientSide.send({ jsonrpc: "2.0", id, method, params } as JSONRPCMessage);
     });
-  await request("initialize", {
+  const init = await request("initialize", {
     protocolVersion: "2025-06-18",
     capabilities: {},
     clientInfo: { name: "test", version: "0" },
@@ -48,7 +49,7 @@ async function connect() {
   await clientSide.send({ jsonrpc: "2.0", method: "notifications/initialized" } as JSONRPCMessage);
   const toolNames = async (): Promise<string[]> =>
     (await request("tools/list", {})).result.tools.map((tool: { name: string }) => tool.name);
-  return { request, toolNames, close: () => server.close() };
+  return { request, toolNames, serverInfo: init.result.serverInfo, close: () => server.close() };
 }
 
 describe("buildServer on a read-only default tenant", () => {
@@ -79,6 +80,18 @@ describe("buildServer on a read-only default tenant", () => {
     const { request, toolNames, close } = await connect();
     await request("tools/call", { name: "set_tenant", arguments: { tenant: "rw" } });
     expect(await toolNames()).toContain("create_package");
+    await close();
+  });
+});
+
+describe("server version", () => {
+  const packageVersion = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf-8")).version;
+
+  it("reports the package.json version in the handshake and in get_tenant", async () => {
+    const { request, serverInfo, close } = await connect();
+    expect(serverInfo).toEqual({ name: "mcp-ci", version: packageVersion });
+    const result = await request("tools/call", { name: "get_tenant", arguments: {} });
+    expect(result.result.content[0].text).toContain(`Server version: ${packageVersion}`);
     await close();
   });
 });

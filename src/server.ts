@@ -5,6 +5,7 @@ import { ODataClient } from "./core/odata-client.js";
 import { ToolAccess } from "./core/tool-access.js";
 import { createGuardedServer } from "./core/guarded-server.js";
 import { allModules } from "./modules/all.js";
+import { SERVER_VERSION } from "./version.js";
 import type { ModuleContext, TenantConfig } from "./core/types.js";
 
 /**
@@ -20,7 +21,7 @@ export function buildServer(
   const tenantManager = new TenantManager(config);
   const odataClient = options.odataClient ?? new ODataClient(new Auth(), tenantManager);
 
-  const server = new McpServer({ name: "mcp-ci", version: "0.1.0" });
+  const server = new McpServer({ name: "mcp-ci", version: SERVER_VERSION });
   const guardedServer = createGuardedServer(server, new ToolAccess(tenantManager));
   const context: ModuleContext = { tenantManager, odataClient };
 
