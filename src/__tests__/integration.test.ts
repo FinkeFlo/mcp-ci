@@ -13,7 +13,7 @@ import { buildListMessagesParams } from "../modules/monitoring/queries.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const configPath = (() => {
   try {
-    return resolveConfigPath(process.env, resolve(__dirname, "../.."), existsSync).path;
+    return resolveConfigPath(process.env, resolve(__dirname, "../.."), existsSync);
   } catch {
     return undefined;
   }

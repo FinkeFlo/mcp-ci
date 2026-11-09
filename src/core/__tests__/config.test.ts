@@ -136,19 +136,19 @@ describe("resolveConfigPath", () => {
   const json = resolve(base, "config/tenants.json");
 
   it("uses MCP_CI_CONFIG when set", () => {
-    const result = resolveConfigPath({ MCP_CI_CONFIG: "/elsewhere/agent.jsonc" }, base, () => true);
-    expect(result).toEqual({ path: "/elsewhere/agent.jsonc", legacy: false });
+    expect(resolveConfigPath({ MCP_CI_CONFIG: "/elsewhere/agent.jsonc" }, base, () => true)).toBe("/elsewhere/agent.jsonc");
   });
 
-  it("prefers tenants.jsonc", () => {
-    expect(resolveConfigPath({}, base, (p) => p === jsonc || p === json)).toEqual({ path: jsonc, legacy: false });
+  it("uses tenants.jsonc", () => {
+    expect(resolveConfigPath({}, base, (p) => p === jsonc || p === json)).toBe(jsonc);
   });
 
-  it("falls back to tenants.json as legacy", () => {
-    expect(resolveConfigPath({}, base, (p) => p === json)).toEqual({ path: json, legacy: true });
+  it("ignores a leftover tenants.json", () => {
+    expect(() => resolveConfigPath({}, base, (p) => p === json)).toThrow(/No tenant config found.*tenants\.jsonc/);
+    expect(() => resolveConfigPath({}, base, (p) => p === json)).not.toThrow(/tenants\.json[^c]/);
   });
 
-  it("throws listing the paths checked", () => {
-    expect(() => resolveConfigPath({}, base, () => false)).toThrow(/tenants\.jsonc.*tenants\.json/s);
+  it("throws naming the path checked", () => {
+    expect(() => resolveConfigPath({}, base, () => false)).toThrow(`No tenant config found at ${jsonc}`);
   });
 });
