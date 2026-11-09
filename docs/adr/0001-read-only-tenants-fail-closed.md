@@ -26,6 +26,8 @@ tenant writable.
 ## Consequences
 
 - Existing configs need `"settings": { "readOnly": false }` for tenants that should accept writes.
-- A new write path in a tool cannot bypass the guard: the guard sits below every tool.
+- A new write path through `ODataClient` is blocked on read-only tenants unless it passes
+  `allowOnReadOnly`; a test fails if any tool other than `execute_guidelines` does. Tools call the
+  tenant only through `ODataClient`.
 - The guarantee covers tool calls through a correctly configured server. It does not protect against
   someone who can edit the config, set `MCP_CI_CONFIG` or start their own process.

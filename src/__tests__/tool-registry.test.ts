@@ -136,6 +136,17 @@ describe("tool registry", () => {
     expect(outside).toEqual([]);
   });
 
+  it("no tool other than execute_guidelines passes allowOnReadOnly", () => {
+    const others = toolBlocks()
+      .filter(({ body, label }) => /allowOnReadOnly/.test(body) && label !== "execute_guidelines")
+      .map(({ file, label }) => `${file}: ${label}`);
+    expect(others).toEqual([]);
+    const outside = sourceFiles(join(srcDir, "modules"))
+      .filter((file) => /allowOnReadOnly/.test(readFileSync(file, "utf-8").split("registerTool(")[0]))
+      .map((file) => relative(srcDir, file));
+    expect(outside).toEqual([]);
+  });
+
   it("execute_guidelines passes allowOnReadOnly", () => {
     const block = toolBlocks().find(({ label }) => label === "execute_guidelines");
     expect(block?.body).toMatch(/odataClient\.post\([^;]*allowOnReadOnly: true/s);
