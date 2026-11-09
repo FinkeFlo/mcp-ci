@@ -35,6 +35,55 @@ function countBy(artifacts: IntegrationRuntimeArtifact[], field: "Status" | "Typ
   return [...counts].sort((x, y) => y[1] - x[1]).map(([value, count]) => `  ${value}: ${count}`).join("\n");
 }
 
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+const asText = (value: unknown) => (typeof value === "string" ? value : JSON.stringify(value));
+const asList = (value: unknown): unknown[] => (Array.isArray(value) ? value : value === undefined ? [] : [value]);
+
+/**
+ * Turns the deployment error envelope (`message` plus `parameter[]` holding
+ * JSON inside strings, nested through `childMessageInstances`) into readable
+ * lines with the deepest message as root cause. Anything of another shape is
+ * kept as text. Returns undefined when the envelope itself is not recognized,
+ * so the caller can fall back to the raw text.
+ */
+function flattenArtifactError(text: string): string | undefined {
+  const envelope = parseJson(text);
+  if (!isObject(envelope) || !isObject(envelope.message) || !Array.isArray(envelope.parameter)) return undefined;
+  const { messageId, subsystemName, subsytemPartName, messageText } = envelope.message;
+  const lines = [`Error: ${messageId ?? "unknown"} (${[subsystemName, subsytemPartName].filter(Boolean).join(" / ")})`];
+  if (messageText) lines.push(asText(messageText));
+  let root: { depth: number; line: string } | undefined;
+  const walk = (detail: Record<string, unknown>, depth: number) => {
+    const line = [detail.message === undefined ? undefined : asText(detail.message), asList(detail.parameters).map(asText).join("; ")]
+      .filter(Boolean)
+      .join(": ");
+    if (line) {
+      lines.push(`${"  ".repeat(depth)}- ${line}`);
+      if (!root || depth > root.depth) root = { depth, line };
+    }
+    for (const child of asList(detail.childMessageInstances)) {
+      if (isObject(child)) walk(child, depth + 1);
+      else if (child !== null) lines.push(`${"  ".repeat(depth + 1)}- ${asText(child)}`);
+    }
+  };
+  for (const entry of envelope.parameter) {
+    const detail = typeof entry === "string" ? (parseJson(entry) ?? entry) : entry;
+    if (isObject(detail) && ("message" in detail || "childMessageInstances" in detail)) walk(detail, 0);
+    else lines.push(`- ${typeof entry === "string" ? entry : asText(entry)}`);
+  }
+  if (root) lines.push("", `Root cause: ${root.line}`);
+  return lines.join("\n");
+}
+
 export function registerRuntimeTools(
   server: McpServer,
   context: ModuleContext
@@ -173,7 +222,7 @@ export function registerRuntimeTools(
       if (!errorText) {
         return "No error information available.";
       }
-      return errorText;
+      return flattenArtifactError(errorText) ?? errorText;
     })
   );
 
