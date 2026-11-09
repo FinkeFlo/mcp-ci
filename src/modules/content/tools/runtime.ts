@@ -29,12 +29,6 @@ function formatArtifact(a: IntegrationRuntimeArtifact): string {
   return lines.join("\n");
 }
 
-interface ErrorDetail {
-  message?: string;
-  parameters?: unknown[];
-  childMessageInstances?: ErrorDetail[];
-}
-
 function parseJson(text: string): unknown {
   try {
     return JSON.parse(text);
@@ -43,35 +37,44 @@ function parseJson(text: string): unknown {
   }
 }
 
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+const asText = (value: unknown) => (typeof value === "string" ? value : JSON.stringify(value));
+const asList = (value: unknown): unknown[] => (Array.isArray(value) ? value : value === undefined ? [] : [value]);
+
 /**
  * Turns the deployment error envelope (`message` plus `parameter[]` holding
  * JSON inside strings, nested through `childMessageInstances`) into readable
- * lines with the deepest message as root cause. Returns undefined for any
- * other shape, so the caller can fall back to the raw text.
+ * lines with the deepest message as root cause. Anything of another shape is
+ * kept as text. Returns undefined when the envelope itself is not recognized,
+ * so the caller can fall back to the raw text.
  */
 function flattenArtifactError(text: string): string | undefined {
-  const envelope = parseJson(text) as { message?: Record<string, unknown>; parameter?: unknown[] } | undefined;
-  if (!envelope?.message || !Array.isArray(envelope.parameter)) return undefined;
+  const envelope = parseJson(text);
+  if (!isObject(envelope) || !isObject(envelope.message) || !Array.isArray(envelope.parameter)) return undefined;
   const { messageId, subsystemName, subsytemPartName, messageText } = envelope.message;
   const lines = [`Error: ${messageId ?? "unknown"} (${[subsystemName, subsytemPartName].filter(Boolean).join(" / ")})`];
-  if (messageText) lines.push(String(messageText));
-  let rootCause: string | undefined;
-  const describe = (detail: ErrorDetail) =>
-    [detail.message, (detail.parameters ?? []).map(String).join("; ")].filter(Boolean).join(": ");
-  const walk = (detail: ErrorDetail, depth: number) => {
-    const line = describe(detail);
+  if (messageText) lines.push(asText(messageText));
+  let root: { depth: number; line: string } | undefined;
+  const walk = (detail: Record<string, unknown>, depth: number) => {
+    const line = [detail.message === undefined ? undefined : asText(detail.message), asList(detail.parameters).map(asText).join("; ")]
+      .filter(Boolean)
+      .join(": ");
     if (line) {
       lines.push(`${"  ".repeat(depth)}- ${line}`);
-      rootCause = line;
+      if (!root || depth > root.depth) root = { depth, line };
     }
-    for (const child of detail.childMessageInstances ?? []) walk(child, depth + 1);
+    for (const child of asList(detail.childMessageInstances)) {
+      if (isObject(child)) walk(child, depth + 1);
+      else if (child !== null) lines.push(`${"  ".repeat(depth + 1)}- ${asText(child)}`);
+    }
   };
   for (const entry of envelope.parameter) {
-    const detail = typeof entry === "string" ? parseJson(entry) : entry;
-    if (detail && typeof detail === "object") walk(detail as ErrorDetail, 0);
-    else lines.push(`- ${String(entry)}`);
+    const detail = typeof entry === "string" ? (parseJson(entry) ?? entry) : entry;
+    if (isObject(detail) && ("message" in detail || "childMessageInstances" in detail)) walk(detail, 0);
+    else lines.push(`- ${typeof entry === "string" ? entry : asText(entry)}`);
   }
-  if (rootCause) lines.push("", `Root cause: ${rootCause}`);
+  if (root) lines.push("", `Root cause: ${root.line}`);
   return lines.join("\n");
 }
 
