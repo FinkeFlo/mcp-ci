@@ -183,6 +183,40 @@ describe("keystore tools", () => {
       expect(result.content[0].text).toContain("No keystore entries expire within 30 day(s)");
     });
 
+    const inDays = (alias: string, days: number) => ({
+      Hexalias: alias,
+      Alias: alias,
+      ValidNotAfter: `/Date(${Date.now() + days * 86_400_000})/`,
+    });
+
+    it("starts the expiry list with a summary line", async () => {
+      mockODataClient.getCollection.mockResolvedValue([inDays("old", -3.5), inDays("soon", 10.5), inDays("far", 400)]);
+      const text = (await handlers.get("list_keystore_entries")!({ keystoreName: "system", expiringWithinDays: 60 })).content[0].text;
+      expect(text.split("\n")[0]).toBe("1 expired, 1 expiring within 60 day(s)");
+    });
+
+    it("includeExpired: false leaves expired entries out", async () => {
+      mockODataClient.getCollection.mockResolvedValue([inDays("old", -3.5), inDays("soon", 10.5)]);
+      const text = (await handlers.get("list_keystore_entries")!({ keystoreName: "system", expiringWithinDays: 60, includeExpired: false })).content[0].text;
+      expect(text.split("\n")[0]).toBe("0 expired, 1 expiring within 60 day(s)");
+      expect(text).toContain("Alias: soon");
+      expect(text).not.toContain("Alias: old");
+    });
+
+    it("keystoreName all queries every keystore, labels entries and sorts across them", async () => {
+      mockODataClient.getCollection.mockImplementation(async (path: string) => {
+        if (path.includes("keystoreName=system")) return [inDays("sys_cert", 20.5)];
+        if (path.includes("keystoreName=backup_admin_system")) return [inDays("backup_cert", 5.5)];
+        throw new Error("OData error (404): keystore not found");
+      });
+      const text = (await handlers.get("list_keystore_entries")!({ keystoreName: "all", expiringWithinDays: 30 })).content[0].text;
+      expect(mockODataClient.getCollection).toHaveBeenCalledTimes(3);
+      expect(text).toContain("Keystore: backup_admin_system\nHexalias: backup_cert");
+      expect(text).toContain("Keystore: system\nHexalias: sys_cert");
+      expect(text.indexOf("backup_cert")).toBeLessThan(text.indexOf("sys_cert"));
+      expect(text).toContain("Keystore KeyRenewal could not be read: OData error (404)");
+    });
+
     it("reports when nothing expires within the window", async () => {
       mockODataClient.getCollection.mockResolvedValue([
         { Hexalias: "a", Alias: "far", ValidNotAfter: `/Date(${Date.now() + 400 * 86_400_000})/` },
