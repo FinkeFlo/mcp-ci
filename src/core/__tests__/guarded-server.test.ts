@@ -139,6 +139,13 @@ describe("ToolAccess with a guarded server", () => {
     expect(tenantManager.getActiveTenantKey()).toBe("prod");
   });
 
+  it("refuses to register a restricted tool whose handler cannot be wrapped", () => {
+    const { server } = fakeServer();
+    const guarded = createGuardedServer(server, new ToolAccess(new TenantManager(config)));
+    expect(() => guarded.registerTool("get_trace", {} as never, {} as never)).toThrow(/get_trace.*handler/);
+    expect(() => guarded.registerTool("get_package", {} as never, {} as never)).not.toThrow();
+  });
+
   it("the registerTool return value is passed through", () => {
     const tenantManager = new TenantManager(config);
     const { server, handles } = fakeServer();

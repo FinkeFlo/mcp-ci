@@ -1,4 +1,4 @@
 {
-  "readOnly": { "maxTools": 140, "maxChars": 64000 },
+  "readOnly": { "maxTools": 142, "maxChars": 65000 },
   "writable": { "maxTools": 232, "maxChars": 122000 }
 }

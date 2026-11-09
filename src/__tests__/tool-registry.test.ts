@@ -92,6 +92,12 @@ describe("tool registry", () => {
     }
   });
 
+  it("tools that only list payload metadata stay read", () => {
+    for (const name of ["get_business_document_payloads", "get_orphaned_interchange_payloads"]) {
+      expect(TOOL_CLASSES[name], name).toBe("read");
+    }
+  });
+
   it("every TOOL_CLASSES entry is a registered tool", () => {
     const names = new Set(registeredToolNames());
     expect(Object.keys(TOOL_CLASSES).filter((name) => !names.has(name))).toEqual([]);
