@@ -17,16 +17,22 @@ function parseODataDate(value: string | null): string {
   return value;
 }
 
+const ARTIFACT_FIELDS = ["Id", "Name", "Version", "Type", "Status", "DeployedBy", "DeployedOn"] as const;
+const PAGE_SIZE = 100;
+const SUMMARY_PAGE = 1000;
+const SUMMARY_MAX_PAGES = 50;
+
+/** Fields missing from the response (not selected) are left out; null shows as n/a. */
 function formatArtifact(a: IntegrationRuntimeArtifact): string {
-  const lines: string[] = [];
-  lines.push(`Id: ${a.Id ?? "n/a"}`);
-  lines.push(`Name: ${a.Name ?? "n/a"}`);
-  lines.push(`Version: ${a.Version ?? "n/a"}`);
-  lines.push(`Type: ${a.Type ?? "n/a"}`);
-  lines.push(`Status: ${a.Status ?? "n/a"}`);
-  lines.push(`DeployedBy: ${a.DeployedBy ?? "n/a"}`);
-  lines.push(`DeployedOn: ${parseODataDate(a.DeployedOn)}`);
-  return lines.join("\n");
+  return ARTIFACT_FIELDS.filter((field) => a[field] !== undefined)
+    .map((field) => `${field}: ${field === "DeployedOn" ? parseODataDate(a.DeployedOn) : (a[field] ?? "n/a")}`)
+    .join("\n");
+}
+
+function countBy(artifacts: IntegrationRuntimeArtifact[], field: "Status" | "Type"): string {
+  const counts = new Map<string, number>();
+  for (const a of artifacts) counts.set(a[field] ?? "n/a", (counts.get(a[field] ?? "n/a") ?? 0) + 1);
+  return [...counts].sort((x, y) => y[1] - x[1]).map(([value, count]) => `  ${value}: ${count}`).join("\n");
 }
 
 export function registerRuntimeTools(
@@ -38,8 +44,12 @@ export function registerRuntimeTools(
     "list_runtime_artifacts",
     {
       description:
-        "List deployed runtime artifacts on the active SAP Cloud Integration tenant. Supports OData query options for filtering, sorting, and pagination.",
+        "List deployed runtime artifacts on the active SAP Cloud Integration tenant (100 per page by default). Use summary for counts by status and type instead of a full list.",
       inputSchema: z.object({
+        summary: z
+          .boolean()
+          .optional()
+          .describe("Only return counts by Status and Type over all artifacts (respects filter; ignores select, orderby, top, skip)"),
         filter: z
           .string()
           .optional()
@@ -55,14 +65,34 @@ export function registerRuntimeTools(
         top: z
           .number()
           .optional()
-          .describe("Maximum number of results to return"),
+          .describe(`Maximum number of results to return (default ${PAGE_SIZE})`),
         skip: z
           .number()
           .optional()
           .describe("Number of results to skip (for pagination)"),
       }),
     },
-    textTool(async ({ filter, select, orderby, top, skip }) => {
+    textTool(async ({ summary, filter, select, orderby, top, skip }) => {
+      if (summary) {
+        // getCollection returns one server page, and the server may cap it
+        // below $top, so keep paging until a page comes back short.
+        const all: IntegrationRuntimeArtifact[] = [];
+        let pageLength = 0;
+        for (let page = 0; page < SUMMARY_MAX_PAGES; page++) {
+          const rows =
+            await context.odataClient.getCollection<IntegrationRuntimeArtifact>(
+              buildRuntimeArtifactsPath(),
+              { $filter: filter, $select: "Status,Type", $top: SUMMARY_PAGE, $skip: all.length }
+            );
+          all.push(...rows);
+          if (page === 0) pageLength = rows.length;
+          if (rows.length === 0 || rows.length < pageLength) break;
+        }
+        if (all.length === 0) return "No deployed artifacts found.";
+        return `${all.length} artifact(s)\n\nBy status:\n${countBy(all, "Status")}\n\nBy type:\n${countBy(all, "Type")}`;
+      }
+      const pageSize = top ?? PAGE_SIZE;
+      const start = skip ?? 0;
       const artifacts =
         await context.odataClient.getCollection<IntegrationRuntimeArtifact>(
           buildRuntimeArtifactsPath(),
@@ -70,7 +100,7 @@ export function registerRuntimeTools(
             $filter: filter,
             $select: select,
             $orderby: orderby,
-            $top: top,
+            $top: pageSize,
             $skip: skip,
           }
         );
@@ -78,7 +108,9 @@ export function registerRuntimeTools(
         return "No deployed artifacts found.";
       }
       const text = artifacts.map(formatArtifact).join("\n\n");
-      return text;
+      return artifacts.length < pageSize
+        ? text
+        : `${text}\n\nShowing ${artifacts.length} artifacts starting at ${start}; more may exist, use skip: ${start + artifacts.length}.`;
     })
   );
 
