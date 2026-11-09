@@ -7,6 +7,7 @@ import { createGuardedServer } from "./core/guarded-server.js";
 import { validateTenantConfig } from "./core/config.js";
 import { allModules } from "./modules/all.js";
 import { SERVER_VERSION } from "./version.js";
+import { CsrfTokenCache } from "./core/csrf-cache.js";
 import { LOCAL_PRINCIPAL, type Principal, type TokenProvider } from "./core/extension-points.js";
 import type { ModuleContext, TenantConfig } from "./core/types.js";
 
@@ -19,18 +20,28 @@ import type { ModuleContext, TenantConfig } from "./core/types.js";
  */
 export function buildServer(
   config: TenantConfig,
-  options: { odataClient?: ODataClient; tokenProvider?: TokenProvider; principal?: Principal } = {}
+  options: {
+    odataClient?: ODataClient;
+    tokenProvider?: TokenProvider;
+    principal?: Principal;
+    csrfCache?: CsrfTokenCache;
+  } = {}
 ): { server: McpServer; tenantManager: TenantManager; odataClient: ODataClient } {
   const tenantManager = new TenantManager(validateTenantConfig(config, "server config"));
+  const principal = options.principal ?? LOCAL_PRINCIPAL;
   const odataClient =
-    options.odataClient ?? new ODataClient(options.tokenProvider ?? new Auth(), tenantManager);
+    options.odataClient ??
+    new ODataClient(options.tokenProvider ?? new Auth(), tenantManager, {
+      principal,
+      csrfCache: options.csrfCache,
+    });
 
   const server = new McpServer({ name: "mcp-ci", version: SERVER_VERSION });
   const guardedServer = createGuardedServer(server, new ToolAccess(tenantManager));
   const context: ModuleContext = {
     tenantManager,
     odataClient,
-    principal: options.principal ?? LOCAL_PRINCIPAL,
+    principal,
   };
 
   for (const mod of allModules) {

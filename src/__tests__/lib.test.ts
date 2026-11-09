@@ -11,6 +11,7 @@ describe("library entry", () => {
     expect(Object.keys(lib).sort()).toEqual(
       [
         "ClientCredentialsTokenProvider",
+        "CsrfTokenCache",
         "LOCAL_PRINCIPAL",
         "NoTenantsError",
         "ODataClient",

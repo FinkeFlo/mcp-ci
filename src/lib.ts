@@ -14,6 +14,7 @@ export type {
 export { createFileConfigSource } from "./core/config-source.js";
 export { parseTenantConfig, loadTenantConfig, validateTenantConfig, NoTenantsError } from "./core/config.js";
 export { Auth as ClientCredentialsTokenProvider } from "./core/auth.js";
+export { CsrfTokenCache } from "./core/csrf-cache.js";
 export { ODataClient } from "./core/odata-client.js";
 export { TenantManager } from "./core/tenant-manager.js";
 export type {

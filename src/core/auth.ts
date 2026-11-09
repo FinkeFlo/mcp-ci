@@ -13,7 +13,8 @@ export class Auth implements TokenProvider {
   private cache = new Map<string, CachedToken>();
 
   async getToken(tenant: Tenant): Promise<string> {
-    const cacheKey = tenant.clientId;
+    // A client id alone is ambiguous: two token endpoints can issue the same id.
+    const cacheKey = JSON.stringify([tenant.oauthUrl, tenant.clientId]);
     const cached = this.cache.get(cacheKey);
 
     if (cached && Date.now() < cached.expiresAt) {

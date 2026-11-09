@@ -74,3 +74,27 @@ describe("Auth", () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("Auth cache key", () => {
+  const response = (token: string) =>
+    ({ ok: true, json: async () => ({ access_token: token, expires_in: 3600 }) }) as Response;
+
+  it("does not share a token between tenants with the same client id but different token endpoints", async () => {
+    const auth = new Auth();
+    const other: Tenant = { ...mockTenant, name: "OTHER", oauthUrl: "https://other.example.com/oauth/token" };
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(response("token-dev"))
+      .mockResolvedValueOnce(response("token-other"));
+    expect(await auth.getToken(mockTenant)).toBe("token-dev");
+    expect(await auth.getToken(other)).toBe("token-other");
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("shares a token between tenants with the same token endpoint and client id", async () => {
+    const auth = new Auth();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(response("token-dev"));
+    await auth.getToken(mockTenant);
+    await auth.getToken({ ...mockTenant, name: "ALIAS", apiUrl: "https://alias.example.com" });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+});

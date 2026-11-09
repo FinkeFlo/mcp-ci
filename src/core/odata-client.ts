@@ -1,4 +1,5 @@
-import { LOCAL_PRINCIPAL, type TokenProvider } from "./extension-points.js";
+import { LOCAL_PRINCIPAL, type Principal, type TokenProvider } from "./extension-points.js";
+import { CsrfTokenCache } from "./csrf-cache.js";
 import type { TenantManager } from "./tenant-manager.js";
 import type { Tenant } from "./types.js";
 
@@ -14,21 +15,32 @@ export interface ODataParams {
 }
 
 export class ODataClient {
-  private static CSRF_TTL = 30 * 60_000;
-  private csrfTokens = new Map<string, { token: string; fetchedAt: number }>();
+  private principal: Principal;
+  private csrfCache: CsrfTokenCache;
 
-  constructor(private auth: TokenProvider, private tenantManager: TenantManager) {}
+  /**
+   * `principal` is who this client works for (default: the local one);
+   * `csrfCache` may be shared by the clients of several sessions.
+   */
+  constructor(
+    private auth: TokenProvider,
+    private tenantManager: TenantManager,
+    options: { principal?: Principal; csrfCache?: CsrfTokenCache } = {}
+  ) {
+    this.principal = options.principal ?? LOCAL_PRINCIPAL;
+    this.csrfCache = options.csrfCache ?? new CsrfTokenCache();
+  }
+
+  private csrfKey(tenant: Tenant): string {
+    return CsrfTokenCache.keyFor(tenant, this.principal);
+  }
 
   private async getCsrfToken(tenant: Tenant): Promise<string> {
-    const cached = this.csrfTokens.get(tenant.clientId);
-    if (cached && Date.now() - cached.fetchedAt < ODataClient.CSRF_TTL) {
-      return cached.token;
-    }
-    return this.fetchCsrfToken(tenant);
+    return this.csrfCache.get(this.csrfKey(tenant)) ?? this.fetchCsrfToken(tenant);
   }
 
   private async fetchCsrfToken(tenant: Tenant): Promise<string> {
-    const token = await this.auth.getToken(tenant, LOCAL_PRINCIPAL);
+    const token = await this.auth.getToken(tenant, this.principal);
     const url = `${tenant.apiUrl}/api/v1/`;
     const response = await fetch(url, {
       headers: {
@@ -46,7 +58,7 @@ export class ODataClient {
     if (!csrfToken) {
       throw new Error("CSRF token missing from response headers");
     }
-    this.csrfTokens.set(tenant.clientId, { token: csrfToken, fetchedAt: Date.now() });
+    this.csrfCache.set(this.csrfKey(tenant), csrfToken);
     return csrfToken;
   }
 
@@ -73,7 +85,7 @@ export class ODataClient {
   ): Promise<any> {
     if (!options?.allowOnReadOnly) this.assertWritable("POST", path);
     const tenant = this.tenantManager.getActiveTenant();
-    const token = await this.auth.getToken(tenant, LOCAL_PRINCIPAL);
+    const token = await this.auth.getToken(tenant, this.principal);
     const csrfToken = await this.getCsrfToken(tenant);
     const url = `${tenant.apiUrl}${path}`;
 
@@ -95,7 +107,7 @@ export class ODataClient {
 
     if (response.status === 403) {
       // Invalidate cached token and retry once
-      this.csrfTokens.delete(tenant.clientId);
+      this.csrfCache.delete(this.csrfKey(tenant));
       const newCsrfToken = await this.fetchCsrfToken(tenant);
       const retryHeaders: Record<string, string> = {
         Authorization: `Bearer ${token}`,
@@ -128,7 +140,7 @@ export class ODataClient {
   async delete(path: string): Promise<void> {
     this.assertWritable("DELETE", path);
     const tenant = this.tenantManager.getActiveTenant();
-    const token = await this.auth.getToken(tenant, LOCAL_PRINCIPAL);
+    const token = await this.auth.getToken(tenant, this.principal);
     const csrfToken = await this.getCsrfToken(tenant);
     const url = `${tenant.apiUrl}${path}`;
 
@@ -143,7 +155,7 @@ export class ODataClient {
 
     if (response.status === 403) {
       // Invalidate cached token and retry once
-      this.csrfTokens.delete(tenant.clientId);
+      this.csrfCache.delete(this.csrfKey(tenant));
       const newCsrfToken = await this.fetchCsrfToken(tenant);
       const retryResponse = await fetch(url, {
         method: "DELETE",
@@ -169,7 +181,7 @@ export class ODataClient {
   async put(path: string, body: Record<string, unknown>): Promise<void> {
     this.assertWritable("PUT", path);
     const tenant = this.tenantManager.getActiveTenant();
-    const token = await this.auth.getToken(tenant, LOCAL_PRINCIPAL);
+    const token = await this.auth.getToken(tenant, this.principal);
     const csrfToken = await this.getCsrfToken(tenant);
     const url = `${tenant.apiUrl}${path}`;
 
@@ -186,7 +198,7 @@ export class ODataClient {
     });
 
     if (response.status === 403) {
-      this.csrfTokens.delete(tenant.clientId);
+      this.csrfCache.delete(this.csrfKey(tenant));
       const newCsrfToken = await this.fetchCsrfToken(tenant);
       const retryResponse = await fetch(url, {
         method: "PUT",
@@ -224,7 +236,7 @@ export class ODataClient {
 
   async getValue(path: string): Promise<string> {
     const tenant = this.tenantManager.getActiveTenant();
-    const token = await this.auth.getToken(tenant, LOCAL_PRINCIPAL);
+    const token = await this.auth.getToken(tenant, this.principal);
     const url = `${tenant.apiUrl}${path}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "*/*" },
@@ -253,7 +265,7 @@ export class ODataClient {
 
   private async request(path: string, params?: ODataParams): Promise<any> {
     const tenant = this.tenantManager.getActiveTenant();
-    const token = await this.auth.getToken(tenant, LOCAL_PRINCIPAL);
+    const token = await this.auth.getToken(tenant, this.principal);
     const url = this.buildUrl(tenant.apiUrl, path, params);
     const response = await fetch(url, {
       headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
