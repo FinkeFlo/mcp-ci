@@ -397,6 +397,27 @@ describe("monitoring tools", () => {
       expect(text).not.toContain("at stack");
     });
 
+    it("groupBy errorText merges lines that differ only in IDs, but keeps HTTP codes apart", async () => {
+      mockODataClient.getCollection.mockResolvedValue(
+        ["g1", "g2", "g3", "g4", "g5"].map((MessageGuid) => makeMpl({ Status: "FAILED", MessageGuid }))
+      );
+      const errors: Record<string, string> = {
+        g1: "Entry 3ce70389-259b-48dd-8e21-7847a4c5b768 not found",
+        g2: "Entry 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d not found",
+        g3: "Message AGkVzD0X1aBcDeFgH2iJkLmN3oPq failed",
+        g4: "Message AGkWaB7Y9zXwVuTsR1qPoNmL5kJi failed",
+        g5: "HTTP 404 from receiver",
+      };
+      mockODataClient.getValue.mockImplementation(async (path: string) =>
+        path.includes("'g5'") ? errors.g5 : errors[/'([^']+)'/.exec(path)![1]]
+      );
+      const text = (await handlers.get("get_errors")!({ groupBy: "errorText" })).content[0].text;
+      expect(text).toContain("Distinct causes: 3");
+      expect(text).toMatch(/Cause: Entry <id> not found\n  Failures: 2/);
+      expect(text).toMatch(/Cause: Message <id> failed\n  Failures: 2/);
+      expect(text).toContain("Cause: HTTP 404 from receiver");
+    });
+
     it("groupBy errorText fetches at most 50 error texts and says so", async () => {
       mockODataClient.getCollection.mockResolvedValue(
         Array.from({ length: 60 }, (_, i) => makeMpl({ Status: "FAILED", MessageGuid: `g${i}` }))

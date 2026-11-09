@@ -70,11 +70,19 @@ function isoTime(value: string | null | undefined): string {
   return match ? new Date(Number(match[1])).toISOString() : (value ?? "n/a");
 }
 
-/** First line of an error text with numbers and long IDs replaced, so similar errors group. */
+/**
+ * First line of an error text with IDs and long numbers replaced, so errors
+ * that differ only in a message or entry ID group. Short numbers such as HTTP
+ * status codes stay, since they tell causes apart.
+ */
 function normalizeErrorLine(text: string | null): string {
   const line = text?.split("\n").map((l) => l.trim()).find(Boolean);
   if (!line) return "(no error text)";
-  return line.replace(/\b[0-9a-f]{8,}\b/gi, "<id>").replace(/\d+/g, "<n>").slice(0, 300);
+  return line
+    .replace(/\b[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\b/gi, "<id>")
+    .replace(/\b(?=[A-Za-z_-]*\d)(?=\w*[A-Za-z])[\w-]{16,}\b/g, "<id>")
+    .replace(/\d{4,}/g, "<n>")
+    .slice(0, 300);
 }
 
 async function mapLimited<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
@@ -628,8 +636,11 @@ export const monitoringModule: Module = {
         }
         const flowEntries = Array.from(groups.entries());
         const samples = samplesPerFlow ?? 1;
-        const sampleTexts = await Promise.all(
-          flowEntries.map(([, flowMessages]) => Promise.all(flowMessages.slice(0, samples).map(errorText)))
+        const sampled = flowEntries.flatMap(([, flowMessages]) => flowMessages.slice(0, samples));
+        const texts = new Map(sampled.map((msg, i) => [msg, i]));
+        const fetched = await mapLimited(sampled, ERROR_FETCH_CONCURRENCY, errorText);
+        const sampleTexts = flowEntries.map(([, flowMessages]) =>
+          flowMessages.slice(0, samples).map((msg) => fetched[texts.get(msg)!])
         );
 
         lines.push(`Affected flows: ${groups.size}`, "");
