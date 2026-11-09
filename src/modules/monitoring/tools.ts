@@ -40,6 +40,13 @@ function formatMessage(m: MessageProcessingLog): string {
   return lines.join("\n");
 }
 
+function formatMessageLine(m: MessageProcessingLog): string {
+  // Free-text fields must not add columns.
+  const cell = (value: string | null | undefined) => (value ?? "n/a").replaceAll("|", "/");
+  const status = m.CustomStatus && m.CustomStatus !== m.Status ? `${m.Status} (custom: ${m.CustomStatus})` : m.Status;
+  return [isoTime(m.LogEnd), cell(status), cell(m.IntegrationFlowName), `${cell(m.Sender)} -> ${cell(m.Receiver)}`, m.MessageGuid].join(" | ");
+}
+
 function toQueryString(params: ODataParams): string {
   const entries = Object.entries(params);
   if (entries.length === 0) return "";
@@ -107,7 +114,7 @@ export const monitoringModule: Module = {
       "list_messages",
       {
         description:
-          "List message processing logs from SAP CPI with optional filters",
+          "List individual messages, one line each, filtered by status (e.g. FAILED), flow, time window or IDs. For an overview of what failed and why, use get_errors; for totals, count_messages or aggregate_messages.",
         inputSchema: z.object({
           status: z
             .string()
@@ -161,8 +168,9 @@ export const monitoringModule: Module = {
         if (messages.length === 0) {
           return "No messages found matching the given filters.";
         }
-        const text = messages.map(formatMessage).join("\n---\n");
-        return `Found ${messages.length} message(s):\n\n${text}`;
+        // One line per message keeps a long list inline in the client.
+        const rows = messages.map(formatMessageLine).join("\n");
+        return `Found ${messages.length} message(s). Use get_message for details of one.\n\nEnd | Status | Flow | Sender -> Receiver | MessageGuid\n${rows}`;
       })
     );
 
@@ -549,7 +557,7 @@ export const monitoringModule: Module = {
       "get_errors",
       {
         description:
-          "Get recent failed messages grouped by integration flow (or by error text with groupBy errorText), with counts and sample errors. Capped at the 200 most recent failures; use aggregate_messages for exact totals.",
+          "Answers which messages or flows failed recently and why: failed messages grouped by flow (or by error text with groupBy errorText), with counts and sample errors. Capped at the 200 most recent failures; aggregate_messages gives exact totals.",
         inputSchema: z.object({
           from: z
             .string()

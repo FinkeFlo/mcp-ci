@@ -33,7 +33,7 @@ function matches(actual: unknown, expected: unknown): boolean {
 /** Scores the first mcp-ci call against the expectation. */
 export function scoreScenario(
   calls: ToolCall[],
-  expectation: { tools: string[]; args?: Record<string, unknown> }
+  expectation: { tools: string[]; args?: Record<string, unknown>; present?: string[] }
 ): { pass: boolean; reason: string } {
   const [first] = calls;
   if (!first) return { pass: false, reason: "no mcp-ci tool called" };
@@ -43,6 +43,11 @@ export function scoreScenario(
   for (const [key, value] of Object.entries(expectation.args ?? {})) {
     if (!matches(first.input[key], value)) {
       return { pass: false, reason: `${first.tool}: ${key} was ${JSON.stringify(first.input[key])}, expected ${JSON.stringify(value)}` };
+    }
+  }
+  for (const key of expectation.present ?? []) {
+    if (first.input[key] === undefined || first.input[key] === "") {
+      return { pass: false, reason: `${first.tool}: ${key} missing` };
     }
   }
   return { pass: true, reason: "ok" };

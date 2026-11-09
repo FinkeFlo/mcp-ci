@@ -51,6 +51,12 @@ describe("scoreScenario", () => {
     expect(scoreScenario([{ tool: "count_messages", input: { status: "NOT_FAILED" } }], { tools: ["count_messages"], args: { status: "FAILED" } }).pass).toBe(false);
   });
 
+  it("requires the arguments listed in present, whatever their value", () => {
+    const expectation = { tools: ["get_errors"], present: ["from"] };
+    expect(scoreScenario([{ tool: "get_errors", input: { from: "2026-01-01T00:00:00Z" } }], expectation).pass).toBe(true);
+    expect(scoreScenario([{ tool: "get_errors", input: {} }], expectation)).toEqual({ pass: false, reason: "get_errors: from missing" });
+  });
+
   it("fails without any call", () => {
     expect(scoreScenario([], expectation)).toEqual({ pass: false, reason: "no mcp-ci tool called" });
   });
