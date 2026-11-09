@@ -9,6 +9,14 @@ import { TOOL_CLASSES } from "./tool-classes.js";
 const CONNECTION_FIELDS = ["apiUrl", "oauthUrl", "clientId", "clientSecret"] as const;
 const SETTINGS_KEYS = new Set(["readOnly", "allowPayloads", "denyTools"]);
 
+/** No tenant to serve; the HTTP layer answers 403 for this and 503 for any other config error. */
+export class NoTenantsError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NoTenantsError";
+  }
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -29,6 +37,10 @@ function normalizeTenant(key: string, raw: Record<string, unknown>): Tenant {
 
   if (raw.name !== undefined && typeof raw.name !== "string") {
     throw new Error(`Tenant '${key}': 'name' must be a string`);
+  }
+
+  if (raw.auth !== undefined && !isObject(raw.auth)) {
+    throw new Error(`Tenant '${key}': 'auth' must be an object`);
   }
 
   const settings = raw.settings ?? {};
@@ -58,6 +70,7 @@ function normalizeTenant(key: string, raw: Record<string, unknown>): Tenant {
     oauthUrl: raw.oauthUrl as string,
     clientId: raw.clientId as string,
     clientSecret: raw.clientSecret as string,
+    ...(raw.auth === undefined ? {} : { auth: structuredClone(raw.auth) }),
     // Fail closed: only an explicit false makes the tenant writable, and only
     // an explicit true exposes message, store and log content.
     settings: {
@@ -66,6 +79,24 @@ function normalizeTenant(key: string, raw: Record<string, unknown>): Tenant {
       denyTools: [...denyTools],
     },
   };
+}
+
+/** The checks every config must pass, whoever produced it: tenants exist and the default is one of them. */
+function finishConfig(
+  tenants: Record<string, Tenant>,
+  defaultTenant: unknown,
+  source: string,
+  noTenantsMessage: string
+): TenantConfig {
+  if (Object.keys(tenants).length === 0) {
+    throw new NoTenantsError(`${source}: ${noTenantsMessage}`);
+  }
+  if (typeof defaultTenant !== "string" || !Object.hasOwn(tenants, defaultTenant)) {
+    throw new Error(
+      `${source}: default tenant '${String(defaultTenant)}' is missing or not enabled ("enabled": true)`
+    );
+  }
+  return { tenants, defaultTenant };
 }
 
 /**
@@ -90,20 +121,34 @@ export function parseTenantConfig(text: string, source = "tenant config"): Tenan
     if (!isObject(entry) || entry.enabled !== true) continue;
     tenants[key] = normalizeTenant(key, entry);
   }
+  return finishConfig(
+    tenants,
+    raw.defaultTenant,
+    source,
+    'no enabled tenant. A tenant is only active with "enabled": true'
+  );
+}
 
-  if (Object.keys(tenants).length === 0) {
-    throw new Error(
-      `${source}: no enabled tenant. A tenant is only active with "enabled": true`
-    );
+/**
+ * Checks and normalizes a config from any source (a `ConfigSource`, a library
+ * caller) with the rules the file source applies, and returns a fresh copy.
+ * Every tenant in `config` counts as enabled: the source already chose.
+ */
+export function validateTenantConfig(config: unknown, source = "tenant config"): TenantConfig {
+  if (!isObject(config) || !isObject(config.tenants)) {
+    throw new Error(`${source}: expected an object with a 'tenants' object`);
   }
-  const defaultTenant = raw.defaultTenant;
-  if (typeof defaultTenant !== "string" || !Object.hasOwn(tenants, defaultTenant)) {
-    throw new Error(
-      `${source}: default tenant '${String(defaultTenant)}' is missing or not enabled ("enabled": true)`
-    );
+  const tenants: Record<string, Tenant> = {};
+  for (const [key, entry] of Object.entries(config.tenants)) {
+    if (key === "__proto__") {
+      throw new Error(`${source}: tenant key '__proto__' is not allowed`);
+    }
+    if (!isObject(entry)) {
+      throw new Error(`${source}: tenant '${key}' must be an object`);
+    }
+    tenants[key] = normalizeTenant(key, entry);
   }
-
-  return { tenants, defaultTenant };
+  return finishConfig(tenants, config.defaultTenant, source, "no tenants configured");
 }
 
 /**

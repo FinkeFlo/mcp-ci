@@ -95,3 +95,45 @@ describe("server version", () => {
     await close();
   });
 });
+
+describe("buildServer config validation", () => {
+  const tenant = { name: "T", ...connection };
+
+  it("rejects a denyTools entry that is not a tool", () => {
+    expect(() =>
+      buildServer({
+        tenants: { t: { ...tenant, settings: { readOnly: true, denyTools: ["no_such_tool"] } } },
+        defaultTenant: "t",
+      })
+    ).toThrow("unknown tool 'no_such_tool'");
+  });
+
+  it("rejects a config without tenants", () => {
+    expect(() => buildServer({ tenants: {}, defaultTenant: "t" })).toThrow("no tenant");
+  });
+
+  it("treats a string readOnly as read-only and lists no write tool", async () => {
+    const { server } = buildServer({
+      tenants: { t: { ...tenant, settings: { readOnly: "false" as unknown as boolean } } },
+      defaultTenant: "t",
+    });
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    const replies: any[] = [];
+    clientSide.onmessage = (message) => replies.push(message);
+    await server.connect(serverSide);
+    await clientSide.start();
+    await clientSide.send({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "0" } },
+    } as JSONRPCMessage);
+    await clientSide.send({ jsonrpc: "2.0", method: "notifications/initialized" } as JSONRPCMessage);
+    await clientSide.send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} } as JSONRPCMessage);
+    await vi.waitFor(() => expect(replies.some((reply) => reply.id === 2)).toBe(true));
+    const names: string[] = replies.find((reply) => reply.id === 2).result.tools.map((tool: { name: string }) => tool.name);
+    expect(names).toContain("get_package");
+    expect(names.filter((name) => classifyTool(name) !== "read")).toEqual([]);
+    await server.close();
+  });
+});

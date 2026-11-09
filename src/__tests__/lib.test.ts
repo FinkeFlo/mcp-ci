@@ -12,6 +12,7 @@ describe("library entry", () => {
       [
         "ClientCredentialsTokenProvider",
         "LOCAL_PRINCIPAL",
+        "NoTenantsError",
         "ODataClient",
         "TenantManager",
         "assertPrincipal",
@@ -19,6 +20,7 @@ describe("library entry", () => {
         "createFileConfigSource",
         "loadTenantConfig",
         "parseTenantConfig",
+        "validateTenantConfig",
       ].sort()
     );
   });
