@@ -28,7 +28,7 @@ describe("scoreScenario", () => {
     expect(scoreScenario([{ tool: "list_keystore_entries", input: { expiringWithinDays: 30 } }], expectation)).toEqual({ pass: true, reason: "ok" });
   });
 
-  it("fails on a wrong first tool, even if a later call is right", () => {
+  it("fails on wrong arguments in the first call, even if a later call is right", () => {
     const result = scoreScenario(
       [{ tool: "list_keystore_entries", input: {} }, { tool: "list_keystore_entries", input: { expiringWithinDays: 30 } }],
       expectation
@@ -40,6 +40,15 @@ describe("scoreScenario", () => {
   it("accepts any listed alternative and string arguments that contain the expected value", () => {
     expect(scoreScenario([{ tool: "aggregate_messages", input: {} }], { tools: ["get_errors", "aggregate_messages"] }).pass).toBe(true);
     expect(scoreScenario([{ tool: "get_message", input: { messageGuid: " AAA1 " } }], { tools: ["get_message"], args: { messageGuid: "AAA1" } }).pass).toBe(true);
+  });
+
+  it("fails on a wrong first tool", () => {
+    const result = scoreScenario([{ tool: "list_messages", input: {} }], expectation);
+    expect(result).toEqual({ pass: false, reason: "first call list_messages, expected list_keystore_entries" });
+  });
+
+  it("compares string arguments exactly after trimming", () => {
+    expect(scoreScenario([{ tool: "count_messages", input: { status: "NOT_FAILED" } }], { tools: ["count_messages"], args: { status: "FAILED" } }).pass).toBe(false);
   });
 
   it("fails without any call", () => {

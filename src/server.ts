@@ -10,6 +10,8 @@ import type { ModuleContext, TenantConfig } from "./core/types.js";
 /**
  * Builds the MCP server with every module registered through the read-only
  * guard. `odataClient` replaces the HTTP client, for evals against mock data.
+ * It also replaces ODataClient's write guard, so it must never be a client
+ * that can reach a tenant.
  */
 export function buildServer(
   config: TenantConfig,

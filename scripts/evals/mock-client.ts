@@ -44,8 +44,12 @@ const PACKAGES = [
   { Id: "PKG_B", Name: "Package B", Description: "Invoicing", Version: "1.0.0", Vendor: "Example", Mode: "EDIT_ALLOWED" },
 ];
 
+const VALUE_MAPPINGS = [
+  { Id: "VM_Countries", Version: "1.0.0", PackageId: "PKG_A", Name: "VM_Countries", Description: "Country codes" },
+];
+
 function byStatus<T extends { Status: string }>(rows: T[], params?: ODataParams): T[] {
-  const status = /Status eq '([A-Z]+)'/.exec(params?.$filter ?? "")?.[1];
+  const status = /(?<!Custom)Status eq '([A-Z]+)'/.exec(params?.$filter ?? "")?.[1];
   return status ? rows.filter((row) => row.Status === status) : rows;
 }
 
@@ -68,6 +72,7 @@ export function createMockClient(): ODataClient {
       if (path.includes("/MessageProcessingLogs")) return byStatus(MESSAGES, params).slice(0, params?.$top ?? 200);
       if (path.includes("/IntegrationRuntimeArtifacts")) return byStatus(ARTIFACTS, params);
       if (path.includes("/KeystoreEntries")) return KEYSTORE;
+      if (path.includes("/ValueMappingDesigntimeArtifacts")) return VALUE_MAPPINGS;
       if (path.includes("/IntegrationPackages")) return PACKAGES;
       return [];
     },
@@ -83,7 +88,10 @@ export function createMockClient(): ODataClient {
         if (path.includes("$count")) return String(ARTIFACTS.length);
         return JSON.stringify({ message: { subsystemName: "Deploy", messageId: "DEPLOY_FAILED" }, parameter: ["Endpoint /orders already used by TestFlow_Orders"] });
       }
-      if (path.includes("$count")) return String(MESSAGES.filter((m) => m.Status === "FAILED").length);
+      if (path.includes("$count")) {
+        const filter = decodeURIComponent(/\$filter=([^&]*)/.exec(path)?.[1] ?? "");
+        return String(byStatus(MESSAGES, { $filter: filter }).length);
+      }
       if (path.includes("ErrorInformation")) return "com.example.ReceiverException: HTTP 503 Service Unavailable from receiver";
       return "";
     },

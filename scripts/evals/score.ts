@@ -26,7 +26,7 @@ export function parseToolCalls(lines: string[]): ToolCall[] {
 }
 
 function matches(actual: unknown, expected: unknown): boolean {
-  if (typeof expected === "string") return typeof actual === "string" && actual.includes(expected);
+  if (typeof expected === "string") return typeof actual === "string" && actual.trim() === expected;
   return JSON.stringify(actual) === JSON.stringify(expected);
 }
 

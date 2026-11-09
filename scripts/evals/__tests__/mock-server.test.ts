@@ -11,6 +11,23 @@ describe("mock OData client", () => {
     expect((await client.getCollection("/api/v1/KeystoreEntries?keystoreName=system")).length).toBeGreaterThan(0);
   });
 
+  it("counts by status and serves value mappings of a package", async () => {
+    const client = createMockClient();
+    const failed = Number(await client.getValue("/api/v1/MessageProcessingLogs/$count?$filter=Status%20eq%20'FAILED'"));
+    const completed = Number(await client.getValue("/api/v1/MessageProcessingLogs/$count?$filter=Status%20eq%20'COMPLETED'"));
+    expect(failed).toBeGreaterThan(0);
+    expect(completed).toBeGreaterThan(0);
+    expect(completed).not.toBe(failed);
+    const mappings = await client.getCollection<{ Id: string }>("/api/v1/IntegrationPackages('PKG_A')/ValueMappingDesigntimeArtifacts");
+    expect(mappings.map((m) => m.Id)).toEqual(["VM_Countries"]);
+  });
+
+  it("does not treat CustomStatus as Status", async () => {
+    const client = createMockClient();
+    const rows = await client.getCollection<{ Status: string }>("/api/v1/MessageProcessingLogs", { $filter: "CustomStatus eq 'ERROR'" });
+    expect(rows.length).toBeGreaterThan(0);
+  });
+
   it("refuses every write", async () => {
     const client = createMockClient();
     await expect(client.post("/api/v1/IntegrationPackages", {})).rejects.toThrow(/eval backend is read-only/);
