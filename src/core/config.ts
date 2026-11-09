@@ -3,9 +3,10 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse, printParseErrorCode, type ParseError } from "jsonc-parser";
 import type { Tenant, TenantConfig } from "./types.js";
+import { TOOL_CLASSES } from "./tool-classes.js";
 
 const CONNECTION_FIELDS = ["apiUrl", "oauthUrl", "clientId", "clientSecret"] as const;
-const SETTINGS_KEYS = new Set(["readOnly", "allowPayloads"]);
+const SETTINGS_KEYS = new Set(["readOnly", "allowPayloads", "denyTools"]);
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -40,6 +41,16 @@ function normalizeTenant(key: string, raw: Record<string, unknown>): Tenant {
       );
     }
   }
+  const denyTools = settings.denyTools === undefined ? [] : settings.denyTools;
+  if (!Array.isArray(denyTools) || !denyTools.every((tool) => typeof tool === "string")) {
+    throw new Error(`Tenant '${key}': 'denyTools' must be a list of tool names`);
+  }
+  // A typo must not silently leave a tool allowed.
+  for (const tool of denyTools) {
+    if (!Object.hasOwn(TOOL_CLASSES, tool)) {
+      throw new Error(`Tenant '${key}': unknown tool '${tool}' in denyTools`);
+    }
+  }
   return {
     name: (raw.name as string | undefined) || key,
     apiUrl: raw.apiUrl as string,
@@ -48,7 +59,11 @@ function normalizeTenant(key: string, raw: Record<string, unknown>): Tenant {
     clientSecret: raw.clientSecret as string,
     // Fail closed: only an explicit false makes the tenant writable, and only
     // an explicit true exposes message, store and log content.
-    settings: { readOnly: settings.readOnly !== false, allowPayloads: settings.allowPayloads === true },
+    settings: {
+      readOnly: settings.readOnly !== false,
+      allowPayloads: settings.allowPayloads === true,
+      denyTools: [...denyTools],
+    },
   };
 }
 

@@ -1,5 +1,5 @@
 import type { McpServer, RegisteredTool } from "@modelcontextprotocol/server";
-import { classifyTool, type ToolAccess } from "./tool-access.js";
+import type { ToolAccess } from "./tool-access.js";
 
 /**
  * Returns a view of `server` whose `registerTool` hands every tool to `access`
@@ -16,21 +16,20 @@ export function createGuardedServer(server: McpServer, access: ToolAccess): McpS
         ) => RegisteredTool;
         const registerTool = (name: string, ...rest: unknown[]): RegisteredTool => {
           const handler = rest.at(-1);
-          // Fail closed: a restricted tool must not run without the call-time check.
-          if (typeof handler !== "function" && classifyTool(name) !== "read") {
+          // Fail closed: no tool may run without the call-time check, since
+          // denyTools can restrict read tools too.
+          if (typeof handler !== "function") {
             throw new Error(`Cannot guard tool '${name}': its handler is not the last argument`);
           }
-          if (typeof handler === "function") {
-            rest[rest.length - 1] = (...args: unknown[]) =>
-              access.call(
-                name,
-                () => handler(...args),
-                (tenantKey) => ({
-                  content: [{ type: "text", text: `Tool '${name}' is not allowed on tenant '${tenantKey}'.` }],
-                  isError: true,
-                })
-              );
-          }
+          rest[rest.length - 1] = (...args: unknown[]) =>
+            access.call(
+              name,
+              () => handler(...args),
+              (tenantKey) => ({
+                content: [{ type: "text", text: `Tool '${name}' is not allowed on tenant '${tenantKey}'.` }],
+                isError: true,
+              })
+            );
           const handle = original(name, ...rest);
           access.track(name, handle);
           return handle;
