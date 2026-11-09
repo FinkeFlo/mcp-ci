@@ -200,8 +200,9 @@ export function registerKeystoreTools(
           .filter((x): x is { e: KeystoreEntry; end: number } => x.end !== null && x.end <= limit)
           .sort((a, b) => a.end - b.end)
           .map((x) => x.e);
-        // An entry whose date cannot be read might be expired; never drop it silently.
-        const unknown = dated.filter((x) => x.end === null).map((x) => x.e);
+        // An entry with a date that cannot be read might be expired; never drop
+        // it silently. An entry without any date has no expiry.
+        const unknown = dated.filter((x) => x.end === null && x.e.ValidNotAfter).map((x) => x.e);
         if (expiring.length === 0 && unknown.length === 0) {
           return `No keystore entries expire within ${expiringWithinDays} day(s).`;
         }

@@ -177,6 +177,12 @@ describe("keystore tools", () => {
       expect(text.indexOf("Alias: offset")).toBeLessThan(text.indexOf("Alias: broken"));
     });
 
+    it("treats a missing ValidNotAfter as no expiry, not as unknown", async () => {
+      mockODataClient.getCollection.mockResolvedValue([{ Hexalias: "a", Alias: "nodate", ValidNotAfter: null }]);
+      const result = await handlers.get("list_keystore_entries")!({ keystoreName: "system", expiringWithinDays: 30 });
+      expect(result.content[0].text).toContain("No keystore entries expire within 30 day(s)");
+    });
+
     it("reports when nothing expires within the window", async () => {
       mockODataClient.getCollection.mockResolvedValue([
         { Hexalias: "a", Alias: "far", ValidNotAfter: `/Date(${Date.now() + 400 * 86_400_000})/` },
