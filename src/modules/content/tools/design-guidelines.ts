@@ -135,7 +135,8 @@ export function registerDesignGuidelineTools(
         return lines.join("\n");
       }
       const path = `${buildExecuteGuidelinesPath(artifactType)}?Id='${escapeOData(artifactId)}'&Version='${escapeOData(version)}'`;
-      await context.odataClient.post(path);
+      // Only runs a check and stores its result, so it stays allowed on read-only tenants.
+      await context.odataClient.post(path, undefined, { allowOnReadOnly: true });
       return `Design guidelines execution triggered successfully for artifact '${artifactId}'.`;
     })
   );

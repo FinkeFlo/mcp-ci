@@ -511,7 +511,7 @@ export const monitoringModule: Module = {
       "get_errors",
       {
         description:
-          "Get recent failed messages grouped by integration flow, with error counts and sample errors",
+          "Get recent failed messages grouped by integration flow, with error counts and one sample error per flow. Capped at the 200 most recent failures; use aggregate_messages for exact totals.",
         inputSchema: z.object({
           from: z
             .string()
@@ -570,9 +570,13 @@ export const monitoringModule: Module = {
 
         const lines: string[] = [
           `Total failed messages: ${messages.length}`,
-          `Affected flows: ${groups.size}`,
-          "",
         ];
+        if (messages.length >= 200) {
+          lines.push(
+            "Note: result is capped at 200 messages (most recent first); the real total may be higher. Use aggregate_messages with status FAILED for the exact count."
+          );
+        }
+        lines.push(`Affected flows: ${groups.size}`, "");
 
         flowEntries.forEach(([flowName, { count, latest }], i) => {
           lines.push(`Flow: ${flowName}`);

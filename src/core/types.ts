@@ -8,6 +8,15 @@ export interface Tenant {
   oauthUrl: string;
   clientId: string;
   clientSecret: string;
+  settings?: TenantSettings;
+}
+
+export interface TenantSettings {
+  /**
+   * Unless exactly false, no request other than GET may reach this tenant.
+   * A missing value counts as read-only.
+   */
+  readOnly?: boolean;
 }
 
 export interface TenantConfig {

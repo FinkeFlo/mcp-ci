@@ -10,6 +10,7 @@ const testConfig: TenantConfig = {
       name: "DEV", apiUrl: "https://dev.example.com",
       oauthUrl: "https://dev.example.com/oauth/token",
       clientId: "test-id", clientSecret: "test-secret",
+      settings: { readOnly: false },
     },
   },
   defaultTenant: "dev",
@@ -77,6 +78,16 @@ describe("ODataClient", () => {
     expect(calledUrl).toContain("$top=50");
     expect(calledUrl).toContain("$orderby=LogEnd%20desc");
     expect(calledUrl).toContain("$select=MessageGuid%2CStatus");
+  });
+
+  it("appends params with & when the path already has a query string", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true, json: async () => ({ d: { results: [] } }),
+    } as Response);
+    await client.getCollection("/api/v1/KeystoreEntries?keystoreName=system", { $select: "Alias" });
+    expect((globalThis.fetch as any).mock.calls[0][0]).toBe(
+      "https://dev.example.com/api/v1/KeystoreEntries?keystoreName=system&$select=Alias"
+    );
   });
 
   it("throws readable error on SAP OData error", async () => {
@@ -322,5 +333,86 @@ describe("ODataClient", () => {
       expect(postInit.body).toBeUndefined();
       expect((postInit.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
     });
+  });
+});
+
+describe("ODataClient on a read-only tenant", () => {
+  const roConfig: TenantConfig = {
+    tenants: {
+      dev: {
+        name: "DEV", apiUrl: "https://dev.example.com",
+        oauthUrl: "https://dev.example.com/oauth/token",
+        clientId: "dev-id", clientSecret: "dev-secret",
+        settings: { readOnly: false },
+      },
+      prod: {
+        name: "PROD", apiUrl: "https://prod.example.com",
+        oauthUrl: "https://prod.example.com/oauth/token",
+        clientId: "prod-id", clientSecret: "prod-secret",
+        settings: { readOnly: true },
+      },
+    },
+    defaultTenant: "prod",
+  };
+
+  let client: ODataClient;
+  let auth: Auth;
+  let tenantManager: TenantManager;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    auth = new Auth();
+    tenantManager = new TenantManager(roConfig);
+    client = new ODataClient(auth, tenantManager);
+    vi.spyOn(auth, "getToken").mockResolvedValue("mock-token");
+  });
+
+  it("post, put and delete throw and never call fetch or getToken", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    await expect(client.post("/api/v1/IntegrationPackages", { Id: "x" }))
+      .rejects.toThrow("Tenant 'prod' is read-only: POST /api/v1/IntegrationPackages blocked");
+    await expect(client.put("/api/v1/IntegrationPackages('x')", { Name: "y" }))
+      .rejects.toThrow("Tenant 'prod' is read-only: PUT");
+    await expect(client.delete("/api/v1/IntegrationPackages('x')"))
+      .rejects.toThrow("Tenant 'prod' is read-only: DELETE");
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(auth.getToken).not.toHaveBeenCalled();
+  });
+
+  it("post with allowOnReadOnly goes through", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "X-CSRF-Token": "csrf" }),
+      } as Response)
+      .mockResolvedValueOnce({ ok: true, status: 200, text: async () => "{}" } as Response);
+    await client.post("/api/v1/DesignGuidelineExecutions", undefined, { allowOnReadOnly: true });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads still work", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ d: { results: [] } }) } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ d: { Id: "x" } }) } as Response)
+      .mockResolvedValueOnce({ ok: true, text: async () => "raw" } as Response);
+    await expect(client.getCollection("/api/v1/IntegrationPackages")).resolves.toEqual([]);
+    await expect(client.getEntity("/api/v1/IntegrationPackages('x')")).resolves.toEqual({ Id: "x" });
+    await expect(client.getValue("/api/v1/x/$value")).resolves.toBe("raw");
+  });
+
+  it("guard follows a tenant switch", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "X-CSRF-Token": "csrf" }),
+      } as Response)
+      .mockResolvedValueOnce({ ok: true, status: 204, text: async () => "" } as Response);
+    tenantManager.setActiveTenant("dev");
+    await client.delete("/api/v1/IntegrationPackages('x')");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    tenantManager.setActiveTenant("prod");
+    await expect(client.delete("/api/v1/IntegrationPackages('x')")).rejects.toThrow("read-only");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 });

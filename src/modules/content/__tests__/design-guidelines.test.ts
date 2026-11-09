@@ -272,7 +272,9 @@ describe("design guideline tools", () => {
         confirm: true,
       });
       expect(mockODataClient.post).toHaveBeenCalledWith(
-        "/api/v1/ExecuteIntegrationDesigntimeArtifactsGuidelines?Id='MyIFlow'&Version='1.0.0'"
+        "/api/v1/ExecuteIntegrationDesigntimeArtifactsGuidelines?Id='MyIFlow'&Version='1.0.0'",
+        undefined,
+        { allowOnReadOnly: true }
       );
       expect(result.content[0].text).toContain(
         "execution triggered successfully"
@@ -288,7 +290,9 @@ describe("design guideline tools", () => {
         confirm: true,
       });
       expect(mockODataClient.post).toHaveBeenCalledWith(
-        "/api/v1/ExecuteScriptCollectionDesigntimeArtifactsGuidelines?Id='MySC'&Version='1.0.0'"
+        "/api/v1/ExecuteScriptCollectionDesigntimeArtifactsGuidelines?Id='MySC'&Version='1.0.0'",
+        undefined,
+        { allowOnReadOnly: true }
       );
     });
 
@@ -301,7 +305,9 @@ describe("design guideline tools", () => {
         confirm: true,
       });
       expect(mockODataClient.post).toHaveBeenCalledWith(
-        "/api/v1/ExecuteIntegrationDesigntimeArtifactsGuidelines?Id='Flow''s'&Version='1.0.0'"
+        "/api/v1/ExecuteIntegrationDesigntimeArtifactsGuidelines?Id='Flow''s'&Version='1.0.0'",
+        undefined,
+        { allowOnReadOnly: true }
       );
     });
 

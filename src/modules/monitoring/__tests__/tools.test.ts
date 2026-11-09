@@ -395,6 +395,26 @@ describe("monitoring tools", () => {
       expect(mockODataClient.getValue).toHaveBeenCalledTimes(2);
     });
 
+    it("warns when the result hits the 200 message cap", async () => {
+      mockODataClient.getCollection.mockResolvedValue(
+        Array.from({ length: 200 }, (_, i) =>
+          makeMpl({ Status: "FAILED", IntegrationFlowName: "Flow_A", MessageGuid: `g${i}` })
+        )
+      );
+      mockODataClient.getValue.mockResolvedValue("some error");
+      const result = await handlers.get("get_errors")!({});
+      expect(result.content[0].text).toContain("capped at 200");
+    });
+
+    it("does not warn below the cap", async () => {
+      mockODataClient.getCollection.mockResolvedValue([
+        makeMpl({ Status: "FAILED", IntegrationFlowName: "Flow_A", MessageGuid: "g1" }),
+      ]);
+      mockODataClient.getValue.mockResolvedValue("some error");
+      const result = await handlers.get("get_errors")!({});
+      expect(result.content[0].text).not.toContain("capped");
+    });
+
     it("handles error text fetch failure gracefully", async () => {
       mockODataClient.getCollection.mockResolvedValue([
         makeMpl({ Status: "FAILED", IntegrationFlowName: "Flow_A", MessageGuid: "g1" }),

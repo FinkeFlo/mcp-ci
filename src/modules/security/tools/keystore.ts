@@ -22,6 +22,13 @@ function parseODataDate(value: string | null): string {
   return value;
 }
 
+function notAfterMs(value: string | null): number | null {
+  if (!value) return null;
+  const match = value.match(/\/Date\((-?\d+)\)\//);
+  const ms = match ? parseInt(match[1]) : Date.parse(value);
+  return Number.isNaN(ms) ? null : ms;
+}
+
 function formatKeystoreEntrySummary(e: KeystoreEntry): string {
   const lines: string[] = [];
   lines.push(`Hexalias: ${e.Hexalias ?? "n/a"}`);
@@ -32,6 +39,13 @@ function formatKeystoreEntrySummary(e: KeystoreEntry): string {
   lines.push(`Validity: ${e.Validity ?? "n/a"}`);
   lines.push(`ValidNotBefore: ${parseODataDate(e.ValidNotBefore)}`);
   lines.push(`ValidNotAfter: ${parseODataDate(e.ValidNotAfter)}`);
+  const endMs = notAfterMs(e.ValidNotAfter);
+  if (endMs !== null) {
+    const days = Math.floor((endMs - Date.now()) / 86_400_000);
+    lines.push(
+      `DaysUntilExpiry: ${days}${days < 0 ? " (expired)" : ""}`
+    );
+  }
   lines.push(`Owner: ${e.Owner ?? "n/a"}`);
   lines.push(`Status: ${e.Status ?? "n/a"}`);
   return lines.join("\n");
@@ -144,7 +158,7 @@ export function registerKeystoreTools(
     "list_keystore_entries",
     {
       description:
-        "List keystore entries from the specified keystore on the active SAP Cloud Integration tenant.",
+        "List keystore entries from the specified keystore on the active SAP Cloud Integration tenant. Each entry shows DaysUntilExpiry (negative = expired). Use expiringWithinDays to list only expired entries and those expiring soon, sorted by expiry.",
       inputSchema: z.object({
         keystoreName: keystoreNameEnum
           .default("system")
@@ -153,15 +167,42 @@ export function registerKeystoreTools(
           .string()
           .optional()
           .describe("Comma-separated list of fields to return"),
+        expiringWithinDays: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe(
+            "Only return entries whose ValidNotAfter is within this many days from now, including already expired ones; sorted by expiry date"
+          ),
       }),
     },
-    textTool(async ({ keystoreName, select }) => {
+    textTool(async ({ keystoreName, select, expiringWithinDays }) => {
+      // The expiry filter needs ValidNotAfter even when the caller selects fields.
+      const fields =
+        select && expiringWithinDays !== undefined && !select.split(",").map((f) => f.trim()).includes("ValidNotAfter")
+          ? `${select},ValidNotAfter`
+          : select;
       const path = `${buildKeystoreEntriesPath()}?keystoreName=${encodeURIComponent(keystoreName)}`;
-      const entries =
+      let entries =
         await context.odataClient.getCollection<KeystoreEntry>(
           path,
-          select ? { $select: select } : undefined
+          fields ? { $select: fields } : undefined
         );
+      if (expiringWithinDays !== undefined) {
+        const limit = Date.now() + expiringWithinDays * 86_400_000;
+        entries = entries
+          .map((e) => ({ e, end: notAfterMs(e.ValidNotAfter) }))
+          .filter(
+            (x): x is { e: KeystoreEntry; end: number } =>
+              x.end !== null && x.end <= limit
+          )
+          .sort((a, b) => a.end - b.end)
+          .map((x) => x.e);
+        if (entries.length === 0) {
+          return `No keystore entries expire within ${expiringWithinDays} day(s).`;
+        }
+      }
       if (entries.length === 0) {
         return "No keystore entries found.";
       }

@@ -3,6 +3,7 @@ import type { Tenant, TenantConfig } from "./types.js";
 export class TenantManager {
   private config: TenantConfig;
   private activeTenantKey: string;
+  private listeners: Array<(tenant: Tenant, key: string) => void> = [];
 
   constructor(config: TenantConfig) {
     if (!config.tenants[config.defaultTenant]) {
@@ -29,6 +30,18 @@ export class TenantManager {
       );
     }
     this.activeTenantKey = key;
+    const tenant = this.getActiveTenant();
+    for (const listener of this.listeners) listener(tenant, key);
+  }
+
+  isActiveReadOnly(): boolean {
+    // Fail closed: only an explicit false makes the tenant writable.
+    return this.getActiveTenant().settings?.readOnly !== false;
+  }
+
+  /** Called after every successful `setActiveTenant`. */
+  onActiveTenantChange(listener: (tenant: Tenant, key: string) => void): void {
+    this.listeners.push(listener);
   }
 
   listTenants(): string[] {
