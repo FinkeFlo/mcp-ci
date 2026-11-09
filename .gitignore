@@ -8,6 +8,7 @@ output/
 .tmp/
 .superpowers/
 coverage-report.json
+.vscode/mcp.json
 
 # SAP API specs (download from api.sap.com, see docs/api/README.md)
 docs/api/*.yaml
