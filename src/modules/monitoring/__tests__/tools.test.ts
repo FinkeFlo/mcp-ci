@@ -355,6 +355,79 @@ describe("monitoring tools", () => {
   });
 
   describe("get_errors", () => {
+    it("shows the latest failure time in ISO 8601", async () => {
+      mockODataClient.getCollection.mockResolvedValue([
+        makeMpl({ Status: "FAILED", MessageGuid: "g1", LogEnd: "/Date(1711900800000)/" }),
+      ]);
+      mockODataClient.getValue.mockResolvedValue("err");
+      const text = (await handlers.get("get_errors")!({})).content[0].text;
+      expect(text).toContain("Latest: 2024-03-31T16:00:00.000Z");
+      expect(text).not.toContain("/Date(");
+    });
+
+    it("samplesPerFlow returns several error samples per flow", async () => {
+      mockODataClient.getCollection.mockResolvedValue([
+        makeMpl({ Status: "FAILED", MessageGuid: "g1" }),
+        makeMpl({ Status: "FAILED", MessageGuid: "g2" }),
+        makeMpl({ Status: "FAILED", MessageGuid: "g3" }),
+      ]);
+      mockODataClient.getValue.mockImplementation(async (path: string) => `error of ${/'([^']+)'/.exec(path)![1]}`);
+      const text = (await handlers.get("get_errors")!({ samplesPerFlow: 2 })).content[0].text;
+      expect(text).toContain("error of g1");
+      expect(text).toContain("error of g2");
+      expect(text).not.toContain("error of g3");
+    });
+
+    it("groupBy errorText groups failures by normalized error line across flows", async () => {
+      mockODataClient.getCollection.mockResolvedValue([
+        makeMpl({ Status: "FAILED", MessageGuid: "g1", IntegrationFlowName: "Flow_A" }),
+        makeMpl({ Status: "FAILED", MessageGuid: "g2", IntegrationFlowName: "Flow_B" }),
+        makeMpl({ Status: "FAILED", MessageGuid: "g3", IntegrationFlowName: "Flow_A" }),
+      ]);
+      const errors: Record<string, string> = {
+        g1: "Read timed out after 30000 ms\n at stack",
+        g2: "Read timed out after 45000 ms",
+        g3: "Mapping failed: field X missing",
+      };
+      mockODataClient.getValue.mockImplementation(async (path: string) => errors[/'([^']+)'/.exec(path)![1]]);
+      const text = (await handlers.get("get_errors")!({ groupBy: "errorText" })).content[0].text;
+      expect(text).toContain("Distinct causes: 2");
+      expect(text).toMatch(/Cause: Read timed out after <n> ms\n  Failures: 2\n  Flows: Flow_A, Flow_B/);
+      expect(text).toMatch(/Cause: Mapping failed: field X missing\n  Failures: 1\n  Flows: Flow_A/);
+      expect(text).not.toContain("at stack");
+    });
+
+    it("groupBy errorText merges lines that differ only in IDs, but keeps HTTP codes apart", async () => {
+      mockODataClient.getCollection.mockResolvedValue(
+        ["g1", "g2", "g3", "g4", "g5"].map((MessageGuid) => makeMpl({ Status: "FAILED", MessageGuid }))
+      );
+      const errors: Record<string, string> = {
+        g1: "Entry 3ce70389-259b-48dd-8e21-7847a4c5b768 not found",
+        g2: "Entry 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d not found",
+        g3: "Message AGkVzD0X1aBcDeFgH2iJkLmN3oPq failed",
+        g4: "Message AGkWaB7Y9zXwVuTsR1qPoNmL5kJi failed",
+        g5: "HTTP 404 from receiver",
+      };
+      mockODataClient.getValue.mockImplementation(async (path: string) =>
+        path.includes("'g5'") ? errors.g5 : errors[/'([^']+)'/.exec(path)![1]]
+      );
+      const text = (await handlers.get("get_errors")!({ groupBy: "errorText" })).content[0].text;
+      expect(text).toContain("Distinct causes: 3");
+      expect(text).toMatch(/Cause: Entry <id> not found\n  Failures: 2/);
+      expect(text).toMatch(/Cause: Message <id> failed\n  Failures: 2/);
+      expect(text).toContain("Cause: HTTP 404 from receiver");
+    });
+
+    it("groupBy errorText fetches at most 50 error texts and says so", async () => {
+      mockODataClient.getCollection.mockResolvedValue(
+        Array.from({ length: 60 }, (_, i) => makeMpl({ Status: "FAILED", MessageGuid: `g${i}` }))
+      );
+      mockODataClient.getValue.mockResolvedValue("same error");
+      const text = (await handlers.get("get_errors")!({ groupBy: "errorText" })).content[0].text;
+      expect(mockODataClient.getValue).toHaveBeenCalledTimes(50);
+      expect(text).toContain("Error texts read for the 50 most recent of 60 failures");
+    });
+
     it("returns no-errors text when empty", async () => {
       mockODataClient.getCollection.mockResolvedValue([]);
       const result = await handlers.get("get_errors")!({});

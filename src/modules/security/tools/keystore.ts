@@ -162,11 +162,12 @@ export function registerKeystoreTools(
     "list_keystore_entries",
     {
       description:
-        "List keystore entries from the specified keystore on the active SAP Cloud Integration tenant. Each entry shows DaysUntilExpiry (negative = expired). Use expiringWithinDays to list only expired entries and those expiring soon, sorted by expiry.",
+        "List keystore entries from a keystore, or from all keystores with keystoreName all. Each entry shows DaysUntilExpiry (negative = expired). Use expiringWithinDays for expired and soon-expiring entries, sorted by expiry.",
       inputSchema: z.object({
-        keystoreName: keystoreNameEnum
+        keystoreName: z
+          .enum([...keystoreNameEnum.options, "all"])
           .default("system")
-          .describe("Name of the keystore (default: system)"),
+          .describe("Name of the keystore, or all (default: system)"),
         select: z
           .string()
           .optional()
@@ -177,45 +178,74 @@ export function registerKeystoreTools(
           .min(0)
           .optional()
           .describe(
-            "Only return entries whose ValidNotAfter is within this many days from now, including already expired ones; sorted by expiry date"
+            "Only return entries whose ValidNotAfter is within this many days from now; sorted by expiry date"
           ),
+        includeExpired: z
+          .boolean()
+          .optional()
+          .describe("With expiringWithinDays: also list already expired entries (default true)"),
       }),
     },
-    textTool(async ({ keystoreName, select, expiringWithinDays }) => {
+    textTool(async ({ keystoreName, select, expiringWithinDays, includeExpired }) => {
       // The expiry filter needs ValidNotAfter even when the caller selects fields.
       const fields =
         select && expiringWithinDays !== undefined && !select.split(",").map((f) => f.trim()).includes("ValidNotAfter")
           ? `${select},ValidNotAfter`
           : select;
-      const path = `${buildKeystoreEntriesPath()}?keystoreName=${encodeURIComponent(keystoreName)}`;
-      let entries =
-        await context.odataClient.getCollection<KeystoreEntry>(
-          path,
-          fields ? { $select: fields } : undefined
-        );
+      const all = keystoreName === "all";
+      const keystores = all ? keystoreNameEnum.options : [keystoreName];
+      const entries: Array<{ keystore: string; e: KeystoreEntry }> = [];
+      const failures: string[] = [];
+      for (const keystore of keystores) {
+        const path = `${buildKeystoreEntriesPath()}?keystoreName=${encodeURIComponent(keystore)}`;
+        try {
+          const rows = await context.odataClient.getCollection<KeystoreEntry>(
+            path,
+            fields ? { $select: fields } : undefined
+          );
+          entries.push(...rows.map((e) => ({ keystore, e })));
+        } catch (error) {
+          // With all, one missing keystore must not hide the others.
+          if (!all) throw error;
+          failures.push(`Keystore ${keystore} could not be read: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      if (failures.length === keystores.length) {
+        throw new Error(failures.join("\n"));
+      }
+      const format = ({ keystore, e }: { keystore: string; e: KeystoreEntry }) =>
+        `${all ? `Keystore: ${keystore}\n` : ""}${formatKeystoreEntrySummary(e)}`;
+      const withFailures = (text: string) => [text, ...failures].join("\n\n");
+
       if (expiringWithinDays !== undefined) {
-        const limit = Date.now() + expiringWithinDays * 86_400_000;
-        const dated = entries.map((e) => ({ e, end: notAfterMs(e.ValidNotAfter) }));
+        const now = Date.now();
+        const limit = now + expiringWithinDays * 86_400_000;
+        const dated = entries.map((x) => ({ ...x, end: notAfterMs(x.e.ValidNotAfter) }));
+        const expired = dated.filter((x) => x.end !== null && x.end < now);
         const expiring = dated
-          .filter((x): x is { e: KeystoreEntry; end: number } => x.end !== null && x.end <= limit)
-          .sort((a, b) => a.end - b.end)
-          .map((x) => x.e);
+          .filter((x): x is typeof x & { end: number } => x.end !== null && x.end <= limit && (includeExpired !== false || x.end >= now))
+          .sort((a, b) => a.end - b.end);
         // An entry with a date that cannot be read might be expired; never drop
         // it silently. An entry without any date has no expiry.
-        const unknown = dated.filter((x) => x.end === null && x.e.ValidNotAfter).map((x) => x.e);
+        const unknown = dated.filter((x) => x.end === null && x.e.ValidNotAfter);
+        const soon = expiring.filter((x) => x.end >= now).length;
+        const hidden = includeExpired === false && expired.length > 0 ? " (not listed)" : "";
+        const summary = `${expired.length} expired${hidden}, ${soon} expiring within ${expiringWithinDays} day(s)${unknown.length ? `, ${unknown.length} with unreadable expiry` : ""}`;
         if (expiring.length === 0 && unknown.length === 0) {
-          return `No keystore entries expire within ${expiringWithinDays} day(s).`;
+          return withFailures(`${summary}\n\nNo keystore entries expire within ${expiringWithinDays} day(s).`);
         }
-        return [
-          ...expiring.map(formatKeystoreEntrySummary),
-          ...unknown.map((e) => `${formatKeystoreEntrySummary(e)}\nDaysUntilExpiry: unknown expiry (ValidNotAfter not readable)`),
-        ].join("\n\n");
+        return withFailures(
+          [
+            summary,
+            ...expiring.map(format),
+            ...unknown.map((x) => `${format(x)}\nDaysUntilExpiry: unknown expiry (ValidNotAfter not readable)`),
+          ].join("\n\n")
+        );
       }
       if (entries.length === 0) {
-        return "No keystore entries found.";
+        return withFailures("No keystore entries found.");
       }
-      const text = entries.map(formatKeystoreEntrySummary).join("\n\n");
-      return text;
+      return withFailures(entries.map(format).join("\n\n"));
     })
   );
 
