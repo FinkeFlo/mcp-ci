@@ -3,9 +3,18 @@
   "version": "0.1.0",
   "description": "MCP server for SAP Cloud Integration",
   "type": "module",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
+  "bin": {
+    "mcp-ci": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "config/tenants.example.jsonc"
+  ],
   "scripts": {
     "start": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "prepare": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "tsx scripts/coverage/cli.ts",
@@ -16,8 +25,8 @@
   "mcpServer": {
     "command": "npx",
     "args": [
-      "tsx",
-      "src/index.ts"
+      "-y",
+      "github:FinkeFlo/mcp-ci"
     ]
   },
   "license": "MIT",

@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { loadTenantConfig } from "./core/config.js";
 import { buildServer } from "./server.js";
