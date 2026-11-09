@@ -177,6 +177,15 @@ describe("ToolAccess with a guarded server", () => {
     expect(handle.enable).not.toHaveBeenCalled();
   });
 
+  it("does not re-enable a real handle that is already enabled", () => {
+    const access = new ToolAccess(new TenantManager({ ...config, defaultTenant: "dev" }));
+    const handle = { enabled: true, enable: vi.fn(), disable: vi.fn() };
+    access.track("create_package", handle);
+    access.apply();
+    expect(handle.enable).not.toHaveBeenCalled();
+    expect(handle.disable).not.toHaveBeenCalled();
+  });
+
   it("a read call stays on the tenant it was checked against, so denyTools elsewhere cannot be bypassed", async () => {
     const tenantManager = new TenantManager({ ...config, defaultTenant: "dev" });
     const { server } = fakeServer();

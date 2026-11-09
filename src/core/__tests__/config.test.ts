@@ -108,7 +108,7 @@ describe("parseTenantConfig", () => {
     expect(() =>
       parseTenantConfig(config(`"enabled": true, "settings": { "denyTools": ["constructor"] }, ${connection}`))
     ).toThrow(/unknown tool 'constructor'/);
-    for (const value of [`"get_package"`, `[1]`, `{}`]) {
+    for (const value of [`"get_package"`, `[1]`, `{}`, `null`]) {
       expect(() =>
         parseTenantConfig(config(`"enabled": true, "settings": { "denyTools": ${value} }, ${connection}`)), value
       ).toThrow(/denyTools.*list of tool names/);

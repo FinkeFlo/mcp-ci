@@ -41,7 +41,7 @@ function normalizeTenant(key: string, raw: Record<string, unknown>): Tenant {
       );
     }
   }
-  const denyTools = settings.denyTools ?? [];
+  const denyTools = settings.denyTools === undefined ? [] : settings.denyTools;
   if (!Array.isArray(denyTools) || !denyTools.every((tool) => typeof tool === "string")) {
     throw new Error(`Tenant '${key}': 'denyTools' must be a list of tool names`);
   }
