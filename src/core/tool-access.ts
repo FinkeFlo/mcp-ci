@@ -44,8 +44,15 @@ export class ToolAccess {
     return !this.tenantManager.isActiveReadOnly();
   }
 
-  activeTenantKey(): string {
-    return this.tenantManager.getActiveTenantKey();
+  /**
+   * Runs a tool call pinned to the active tenant, so the access check and
+   * every request the handler makes use the same tenant.
+   */
+  call<T>(name: string, handler: () => T, refuse: (tenantKey: string) => T): T {
+    if (classifyTool(name) === "read") return handler();
+    return this.tenantManager.runPinned(() =>
+      this.isAllowed(name) ? handler() : refuse(this.tenantManager.getActiveTenantKey())
+    );
   }
 
   private toggle(name: string, handle: ToggleableTool): void {

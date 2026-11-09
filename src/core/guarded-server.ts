@@ -3,8 +3,8 @@ import type { ToolAccess } from "./tool-access.js";
 
 /**
  * Returns a view of `server` whose `registerTool` hands every tool to `access`
- * and wraps its handler, so a tool the active tenant does not allow is refused
- * at call time even if a client still calls it.
+ * and wraps its handler: a tool the active tenant does not allow is refused at
+ * call time, and an allowed restricted call stays pinned to that tenant.
  */
 export function createGuardedServer(server: McpServer, access: ToolAccess): McpServer {
   return new Proxy(server, {
@@ -18,12 +18,14 @@ export function createGuardedServer(server: McpServer, access: ToolAccess): McpS
           const handler = rest.at(-1);
           if (typeof handler === "function") {
             rest[rest.length - 1] = (...args: unknown[]) =>
-              access.isAllowed(name)
-                ? handler(...args)
-                : {
-                    content: [{ type: "text", text: `Tool '${name}' is not allowed on tenant '${access.activeTenantKey()}'.` }],
-                    isError: true,
-                  };
+              access.call(
+                name,
+                () => handler(...args),
+                (tenantKey) => ({
+                  content: [{ type: "text", text: `Tool '${name}' is not allowed on tenant '${tenantKey}'.` }],
+                  isError: true,
+                })
+              );
           }
           const handle = original(name, ...rest);
           access.track(name, handle);

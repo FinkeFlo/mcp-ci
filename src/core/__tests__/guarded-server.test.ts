@@ -118,6 +118,27 @@ describe("ToolAccess with a guarded server", () => {
     expect(calls).toEqual(["get_package", "get_trace"]);
   });
 
+  it("a restricted call keeps the tenant it was checked against, even if set_tenant runs meanwhile", async () => {
+    const tenantManager = new TenantManager({ ...config, defaultTenant: "support" });
+    const { server } = fakeServer();
+    const guarded = createGuardedServer(server, new ToolAccess(tenantManager));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const seen: string[] = [];
+    guarded.registerTool("get_trace", {}, async () => {
+      await gate;
+      seen.push(tenantManager.getActiveTenantKey(), String(tenantManager.isActivePayloadAllowed()));
+      return { content: [] };
+    });
+    const handler = (server.registerTool as unknown as ReturnType<typeof vi.fn>).mock.calls[0][2] as () => Promise<unknown>;
+    const call = handler();
+    tenantManager.setActiveTenant("prod");
+    release();
+    await call;
+    expect(seen).toEqual(["support", "true"]);
+    expect(tenantManager.getActiveTenantKey()).toBe("prod");
+  });
+
   it("the registerTool return value is passed through", () => {
     const tenantManager = new TenantManager(config);
     const { server, handles } = fakeServer();
