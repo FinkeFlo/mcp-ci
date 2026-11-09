@@ -71,7 +71,7 @@ describe("parseTenantConfig", () => {
     ];
     for (const [settings, readOnly] of cases) {
       const parsed = parseTenantConfig(config(`"enabled": true, ${settings} ${connection}`));
-      expect(parsed.tenants.prod.settings, `settings: ${settings || "(missing)"}`).toEqual({ readOnly, allowPayloads: false });
+      expect(parsed.tenants.prod.settings, `settings: ${settings || "(missing)"}`).toEqual({ readOnly, allowPayloads: false, denyTools: [] });
     }
   });
 
@@ -93,6 +93,25 @@ describe("parseTenantConfig", () => {
   it("rejects a default tenant that only exists on Object.prototype", () => {
     for (const name of ["constructor", "toString", "__proto__"]) {
       expect(() => parseTenantConfig(config(`"enabled": true, ${connection}`, name)), name).toThrow(/default tenant/);
+    }
+  });
+
+  it("denyTools keeps known tool names", () => {
+    const parsed = parseTenantConfig(config(`"enabled": true, "settings": { "denyTools": ["get_package", "list_messages"] }, ${connection}`));
+    expect(parsed.tenants.prod.settings?.denyTools).toEqual(["get_package", "list_messages"]);
+  });
+
+  it("denyTools rejects unknown names and non-string lists", () => {
+    expect(() =>
+      parseTenantConfig(config(`"enabled": true, "settings": { "denyTools": ["get_pakage"] }, ${connection}`))
+    ).toThrow(/prod.*unknown tool 'get_pakage'/);
+    expect(() =>
+      parseTenantConfig(config(`"enabled": true, "settings": { "denyTools": ["constructor"] }, ${connection}`))
+    ).toThrow(/unknown tool 'constructor'/);
+    for (const value of [`"get_package"`, `[1]`, `{}`]) {
+      expect(() =>
+        parseTenantConfig(config(`"enabled": true, "settings": { "denyTools": ${value} }, ${connection}`)), value
+      ).toThrow(/denyTools.*list of tool names/);
     }
   });
 

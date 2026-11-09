@@ -18,6 +18,7 @@ export interface TenantSettings {
    */
   readOnly?: boolean;
   allowPayloads?: boolean;
+  denyTools?: string[];
 }
 
 export interface TenantConfig {

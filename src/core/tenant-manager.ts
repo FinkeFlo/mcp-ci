@@ -55,6 +55,10 @@ export class TenantManager {
     return this.getActiveTenant().settings?.allowPayloads === true;
   }
 
+  isToolDenied(name: string): boolean {
+    return this.getActiveTenant().settings?.denyTools?.includes(name) ?? false;
+  }
+
   /** Called after every successful `setActiveTenant`. */
   onActiveTenantChange(listener: (tenant: Tenant, key: string) => void): void {
     this.listeners.push(listener);

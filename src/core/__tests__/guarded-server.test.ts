@@ -18,6 +18,7 @@ const config: TenantConfig = {
     prod: { name: "PROD", ...connection, settings: { readOnly: true } },
     dev: { name: "DEV", ...connection, settings: { readOnly: false } },
     support: { name: "SUPPORT", ...connection, settings: { readOnly: true, allowPayloads: true } },
+    locked: { name: "LOCKED", ...connection, settings: { readOnly: false, denyTools: ["get_package", "create_package"] } },
   },
   defaultTenant: "prod",
 };
@@ -139,11 +140,78 @@ describe("ToolAccess with a guarded server", () => {
     expect(tenantManager.getActiveTenantKey()).toBe("prod");
   });
 
-  it("refuses to register a restricted tool whose handler cannot be wrapped", () => {
+  it("refuses to register a tool whose handler cannot be wrapped", () => {
     const { server } = fakeServer();
     const guarded = createGuardedServer(server, new ToolAccess(new TenantManager(config)));
     expect(() => guarded.registerTool("get_trace", {} as never, {} as never)).toThrow(/get_trace.*handler/);
-    expect(() => guarded.registerTool("get_package", {} as never, {} as never)).not.toThrow();
+    // Read tools too: denyTools can restrict them.
+    expect(() => guarded.registerTool("get_package", {} as never, {} as never)).toThrow(/get_package.*handler/);
+  });
+
+  it("denyTools hides and refuses the listed tools, read or write, only on that tenant", async () => {
+    const { tenantManager, handles, calls, invoke } = setup();
+    tenantManager.setActiveTenant("dev");
+    handles.get("get_package")!.disable.mockClear();
+    tenantManager.setActiveTenant("locked");
+    expect(handles.get("get_package")!.disable).toHaveBeenCalled();
+    expect(handles.get("create_package")!.disable).toHaveBeenCalled();
+    for (const name of ["get_package", "create_package"]) {
+      expect((await invoke(name)).isError, name).toBe(true);
+    }
+    expect(calls).toEqual([]);
+
+    tenantManager.setActiveTenant("dev");
+    expect(handles.get("get_package")!.enable).toHaveBeenCalled();
+    await invoke("get_package");
+    expect(calls).toEqual(["get_package"]);
+  });
+
+  it("only toggles a real handle when its state changes", () => {
+    const tenantManager = new TenantManager(config);
+    const access = new ToolAccess(tenantManager);
+    const handle = { enabled: true, enable: vi.fn(), disable: vi.fn(() => (handle.enabled = false)) };
+    access.track("create_package", handle);
+    expect(handle.disable).toHaveBeenCalledTimes(1);
+    access.apply();
+    expect(handle.disable).toHaveBeenCalledTimes(1);
+    expect(handle.enable).not.toHaveBeenCalled();
+  });
+
+  it("a read call stays on the tenant it was checked against, so denyTools elsewhere cannot be bypassed", async () => {
+    const tenantManager = new TenantManager({ ...config, defaultTenant: "dev" });
+    const { server } = fakeServer();
+    const guarded = createGuardedServer(server, new ToolAccess(tenantManager));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const seen: string[] = [];
+    guarded.registerTool("get_package", {}, async () => {
+      await gate;
+      seen.push(tenantManager.getActiveTenantKey());
+      return { content: [] };
+    });
+    const handler = (server.registerTool as unknown as ReturnType<typeof vi.fn>).mock.calls[0][2] as () => Promise<unknown>;
+    const call = handler();
+    tenantManager.setActiveTenant("locked");
+    release();
+    await call;
+    expect(seen).toEqual(["dev"]);
+  });
+
+  it("set_tenant is not pinned, so it really switches the tenant", async () => {
+    const tenantManager = new TenantManager(config);
+    const { server } = fakeServer();
+    const access = new ToolAccess(tenantManager);
+    const guarded = createGuardedServer(server, access);
+    guarded.registerTool("set_tenant", {}, async () => {
+      tenantManager.setActiveTenant("dev");
+      return { content: [] };
+    });
+    const create = { enabled: false, enable: vi.fn(() => (create.enabled = true)), disable: vi.fn() };
+    access.track("create_package", create);
+    const handler = (server.registerTool as unknown as ReturnType<typeof vi.fn>).mock.calls[0][2] as () => Promise<unknown>;
+    await handler();
+    expect(tenantManager.getActiveTenantKey()).toBe("dev");
+    expect(create.enable).toHaveBeenCalled();
   });
 
   it("the registerTool return value is passed through", () => {
