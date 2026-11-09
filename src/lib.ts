@@ -11,6 +11,8 @@ export type {
   Authenticator,
   ServerOptions,
 } from "./core/extension-points.js";
+export { createSessionFactory } from "./core/session-factory.js";
+export type { Session, SessionFactory } from "./core/session-factory.js";
 export { createFileConfigSource } from "./core/config-source.js";
 export { parseTenantConfig, loadTenantConfig, validateTenantConfig, NoTenantsError } from "./core/config.js";
 export { Auth as ClientCredentialsTokenProvider } from "./core/auth.js";

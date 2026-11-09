@@ -19,6 +19,7 @@ describe("library entry", () => {
         "assertPrincipal",
         "buildServer",
         "createFileConfigSource",
+        "createSessionFactory",
         "loadTenantConfig",
         "parseTenantConfig",
         "validateTenantConfig",
