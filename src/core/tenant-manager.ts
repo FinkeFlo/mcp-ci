@@ -39,6 +39,11 @@ export class TenantManager {
     return this.getActiveTenant().settings?.readOnly !== false;
   }
 
+  isActivePayloadAllowed(): boolean {
+    // Fail closed: only an explicit true exposes payload tools.
+    return this.getActiveTenant().settings?.allowPayloads === true;
+  }
+
   /** Called after every successful `setActiveTenant`. */
   onActiveTenantChange(listener: (tenant: Tenant, key: string) => void): void {
     this.listeners.push(listener);

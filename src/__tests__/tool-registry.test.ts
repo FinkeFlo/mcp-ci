@@ -86,6 +86,12 @@ describe("tool registry", () => {
     expect(missing, "add these to src/core/tool-classes.ts (suggested class from the name)").toEqual([]);
   });
 
+  it("tools that return message, store or log content are payload", () => {
+    for (const name of ["get_trace", "download_message_store_entry", "download_data_store_entry", "download_log_file", "export_keystore"]) {
+      expect(TOOL_CLASSES[name], name).toBe("payload");
+    }
+  });
+
   it("every TOOL_CLASSES entry is a registered tool", () => {
     const names = new Set(registeredToolNames());
     expect(Object.keys(TOOL_CLASSES).filter((name) => !names.has(name))).toEqual([]);
@@ -93,7 +99,8 @@ describe("tool registry", () => {
 
   it("no TOOL_CLASSES entry contradicts its name, except the listed exceptions", () => {
     const contradicting = Object.entries(TOOL_CLASSES)
-      .filter(([name, kind]) => !NAME_EXCEPTIONS.has(name) && kind !== classByPrefix(name))
+      // payload is a subset of read: it may carry a read prefix, never a write prefix.
+      .filter(([name, kind]) => !NAME_EXCEPTIONS.has(name) && (kind === "write" ? "write" : "read") !== classByPrefix(name))
       .map(([name, kind]) => `${name}: ${kind}`);
     expect(contradicting).toEqual([]);
   });

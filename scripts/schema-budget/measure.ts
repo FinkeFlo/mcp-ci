@@ -9,10 +9,13 @@ const connection = {
   clientSecret: "secret",
 };
 
-/** Size of the `tools/list` result a client receives for a read-only or a writable tenant. */
+/**
+ * Size of the `tools/list` result a client receives for a read-only tenant, or
+ * for a writable tenant with payloads allowed (every tool visible).
+ */
 export async function measureToolSchemas(readOnly: boolean): Promise<Measurement> {
   const { server } = buildServer({
-    tenants: { t: { name: "T", ...connection, settings: { readOnly } } },
+    tenants: { t: { name: "T", ...connection, settings: { readOnly, allowPayloads: !readOnly } } },
     defaultTenant: "t",
   });
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();

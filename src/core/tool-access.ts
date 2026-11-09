@@ -1,7 +1,8 @@
 import type { TenantManager } from "./tenant-manager.js";
 import { TOOL_CLASSES } from "./tool-classes.js";
 
-export type ToolAccessKind = "read" | "write";
+/** `payload` tools only read, but return message, store or log content. */
+export type ToolAccessKind = "read" | "payload" | "write";
 
 export interface ToggleableTool {
   enable(): void;
@@ -14,12 +15,13 @@ export function classifyTool(name: string): ToolAccessKind | undefined {
 }
 
 /**
- * Hides write tools while the active tenant is read-only. Tools missing from
- * TOOL_CLASSES count as write (fail closed). The hard guarantee lives in
- * ODataClient; this only keeps write tools out of the tool list.
+ * Hides tools the active tenant does not allow: write tools on read-only
+ * tenants, payload tools unless `allowPayloads` is set. Tools missing from
+ * TOOL_CLASSES count as write (fail closed). The guarded server also checks
+ * `isAllowed` on every call; for writes, ODataClient is the final guard.
  */
 export class ToolAccess {
-  private writeTools = new Map<string, ToggleableTool>();
+  private restricted = new Map<string, ToggleableTool>();
 
   constructor(private tenantManager: TenantManager) {
     tenantManager.onActiveTenantChange(() => this.apply());
@@ -27,16 +29,27 @@ export class ToolAccess {
 
   track(name: string, handle: ToggleableTool): void {
     if (classifyTool(name) === "read") return;
-    this.writeTools.set(name, handle);
-    this.toggle(handle);
+    this.restricted.set(name, handle);
+    this.toggle(name, handle);
   }
 
   apply(): void {
-    for (const handle of this.writeTools.values()) this.toggle(handle);
+    for (const [name, handle] of this.restricted) this.toggle(name, handle);
   }
 
-  private toggle(handle: ToggleableTool): void {
-    if (this.tenantManager.isActiveReadOnly()) handle.disable();
-    else handle.enable();
+  isAllowed(name: string): boolean {
+    const kind = classifyTool(name) ?? "write";
+    if (kind === "read") return true;
+    if (kind === "payload") return this.tenantManager.isActivePayloadAllowed();
+    return !this.tenantManager.isActiveReadOnly();
+  }
+
+  activeTenantKey(): string {
+    return this.tenantManager.getActiveTenantKey();
+  }
+
+  private toggle(name: string, handle: ToggleableTool): void {
+    if (this.isAllowed(name)) handle.enable();
+    else handle.disable();
   }
 }

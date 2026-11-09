@@ -1,7 +1,11 @@
 import type { McpServer, RegisteredTool } from "@modelcontextprotocol/server";
 import type { ToolAccess } from "./tool-access.js";
 
-/** Returns a view of `server` whose `registerTool` hands every tool to `access`. */
+/**
+ * Returns a view of `server` whose `registerTool` hands every tool to `access`
+ * and wraps its handler, so a tool the active tenant does not allow is refused
+ * at call time even if a client still calls it.
+ */
 export function createGuardedServer(server: McpServer, access: ToolAccess): McpServer {
   return new Proxy(server, {
     get(target, property, receiver) {
@@ -11,6 +15,16 @@ export function createGuardedServer(server: McpServer, access: ToolAccess): McpS
           ...rest: unknown[]
         ) => RegisteredTool;
         const registerTool = (name: string, ...rest: unknown[]): RegisteredTool => {
+          const handler = rest.at(-1);
+          if (typeof handler === "function") {
+            rest[rest.length - 1] = (...args: unknown[]) =>
+              access.isAllowed(name)
+                ? handler(...args)
+                : {
+                    content: [{ type: "text", text: `Tool '${name}' is not allowed on tenant '${access.activeTenantKey()}'.` }],
+                    isError: true,
+                  };
+          }
           const handle = original(name, ...rest);
           access.track(name, handle);
           return handle;
