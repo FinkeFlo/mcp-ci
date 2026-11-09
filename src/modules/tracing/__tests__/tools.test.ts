@@ -69,6 +69,19 @@ describe("tracing tools", () => {
     });
   });
 
+  describe("get_message_runs date formats", () => {
+    it("orders offset, ISO and missing start times, missing last", async () => {
+      mockODataClient.getCollection.mockResolvedValue([
+        { Id: "none", RunStart: null },
+        { Id: "iso", RunStart: "1970-01-01T00:00:02.500Z" },
+        { Id: "offset", RunStart: "/Date(3000+0060)/" },
+      ]);
+      const text = (await handlers.get("get_message_runs")!({ messageGuid: "g1" })).content[0].text;
+      expect(text.indexOf("offset")).toBeLessThan(text.indexOf("iso"));
+      expect(text.indexOf("iso")).toBeLessThan(text.indexOf("none"));
+    });
+  });
+
   describe("get_run_steps without server-side ordering", () => {
     it("sends no $orderby (the API answers 501) and sorts by ChildCount itself", async () => {
       mockODataClient.getCollection.mockResolvedValue([
