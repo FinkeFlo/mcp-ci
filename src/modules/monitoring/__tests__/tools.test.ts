@@ -69,6 +69,19 @@ describe("monitoring tools", () => {
       expect(result.content[0].text).toContain("guid-1");
     });
 
+    it("lists one compact line per message with ISO end time", async () => {
+      mockODataClient.getCollection.mockResolvedValue([
+        makeMpl({ MessageGuid: "guid-1", Status: "FAILED", IntegrationFlowName: "Flow_A", LogEnd: "/Date(1711900800000)/", AlternateWebLink: "https://x/link" }),
+        makeMpl({ MessageGuid: "guid-2", Status: "COMPLETED", IntegrationFlowName: "Flow_B" }),
+      ]);
+      const text = (await handlers.get("list_messages")!({})).content[0].text;
+      const lines = text.split("\n");
+      expect(lines).toContain("2024-03-31T16:00:00.000Z | FAILED | Flow_A | SenderA -> ReceiverA | guid-1");
+      expect(lines.filter((l: string) => l.includes(" | ")).length).toBe(3); // header + 2 rows
+      expect(text).not.toContain("https://x/link");
+      expect(text).toContain("get_message");
+    });
+
     it("returns error on failure", async () => {
       mockODataClient.getCollection.mockRejectedValue(new Error("OData error (500): fail"));
       const result = await handlers.get("list_messages")!({});
@@ -89,15 +102,15 @@ describe("monitoring tools", () => {
         }),
       ]);
       const result = await handlers.get("list_messages")!({});
-      expect(result.content[0].text).toContain("Status: COMPLETED (CustomStatus: ERROR)");
+      expect(result.content[0].text).toContain("COMPLETED (custom: ERROR)");
       expect(result.content[0].text).toContain("guid-soft-fault");
     });
 
     it("does not show CustomStatus when not set", async () => {
       mockODataClient.getCollection.mockResolvedValue([makeMpl()]);
       const result = await handlers.get("list_messages")!({});
-      expect(result.content[0].text).toContain("Status: COMPLETED");
-      expect(result.content[0].text).not.toContain("CustomStatus");
+      expect(result.content[0].text).toContain("| COMPLETED |");
+      expect(result.content[0].text).not.toContain("custom:");
     });
   });
 

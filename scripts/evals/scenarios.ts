@@ -14,6 +14,11 @@ export const SCENARIOS: Scenario[] = [
     expect: { tools: ["get_errors"] },
   },
   {
+    id: "failed-messages-24h",
+    question: "Could you please tell me which messages have failed in the last 24 hours?",
+    expect: { tools: ["get_errors"] },
+  },
+  {
     id: "failures-count",
     question: "How many messages are in status FAILED right now? Just the number.",
     expect: { tools: ["count_messages"], args: { status: "FAILED" } },
