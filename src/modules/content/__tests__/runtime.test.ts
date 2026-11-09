@@ -81,6 +81,46 @@ describe("runtime artifact tools", () => {
       expect(text).toContain("DeployedOn: n/a");
     });
 
+    it("prints only the fields the response contains, so a select does not show n/a", async () => {
+      mockODataClient.getCollection.mockResolvedValue([{ Id: "flow1", Name: "My Flow", Status: "STARTED" }]);
+      const text = (await handlers.get("list_runtime_artifacts")!({ select: "Id,Name,Status" })).content[0].text;
+      expect(text).toContain("Status: STARTED");
+      expect(text).not.toContain("n/a");
+      expect(text).not.toContain("Version");
+    });
+
+    it("defaults to 100 results and says how to get the next page", async () => {
+      mockODataClient.getCollection.mockResolvedValue(
+        Array.from({ length: 100 }, (_, i) => ({ Id: `f${i}`, Name: `F${i}`, Status: "STARTED" }))
+      );
+      const text = (await handlers.get("list_runtime_artifacts")!({})).content[0].text;
+      expect(mockODataClient.getCollection.mock.calls[0][1].$top).toBe(100);
+      expect(text).toContain("Showing 100 artifacts starting at 0; more may exist, use skip: 100");
+    });
+
+    it("does not add a paging hint below the page size", async () => {
+      mockODataClient.getCollection.mockResolvedValue([{ Id: "f1", Status: "STARTED" }]);
+      const text = (await handlers.get("list_runtime_artifacts")!({ top: 10, skip: 20 })).content[0].text;
+      expect(text).not.toContain("more may exist");
+    });
+
+    it("summary counts artifacts by status and type without listing them", async () => {
+      mockODataClient.getCollection.mockResolvedValue([
+        { Status: "STARTED", Type: "INTEGRATION_FLOW" },
+        { Status: "STARTED", Type: "INTEGRATION_FLOW" },
+        { Status: "ERROR", Type: "INTEGRATION_FLOW" },
+        { Status: "STARTED", Type: "VALUE_MAPPING" },
+      ]);
+      const text = (await handlers.get("list_runtime_artifacts")!({ summary: true, filter: "Type eq 'INTEGRATION_FLOW'" })).content[0].text;
+      const [, params] = mockODataClient.getCollection.mock.calls[0];
+      expect(params).toEqual({ $filter: "Type eq 'INTEGRATION_FLOW'", $select: "Status,Type" });
+      expect(text).toContain("4 artifact(s)");
+      expect(text).toContain("STARTED: 3");
+      expect(text).toContain("ERROR: 1");
+      expect(text).toContain("INTEGRATION_FLOW: 3");
+      expect(text).toContain("VALUE_MAPPING: 1");
+    });
+
     it("returns empty message when no artifacts found", async () => {
       mockODataClient.getCollection.mockResolvedValue([]);
       const result = await handlers.get("list_runtime_artifacts")!({});
