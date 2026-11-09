@@ -1,6 +1,6 @@
 {
   "name": "mcp-ci",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server for SAP Cloud Integration",
   "type": "module",
   "main": "dist/index.js",
@@ -26,7 +26,7 @@
     "command": "npx",
     "args": [
       "-y",
-      "github:FinkeFlo/mcp-ci#v0.1.0"
+      "github:FinkeFlo/mcp-ci#v0.1.1"
     ]
   },
   "license": "MIT",
