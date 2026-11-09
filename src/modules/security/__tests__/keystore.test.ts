@@ -157,6 +157,32 @@ describe("keystore tools", () => {
       );
     });
 
+    it("parses dates with a time zone offset and keeps unparseable entries", async () => {
+      const day = 86_400_000;
+      mockODataClient.getCollection.mockResolvedValue([
+        { Hexalias: "a", Alias: "offset", ValidNotAfter: `/Date(${Date.now() + 5.5 * day}+0060)/` },
+        { Hexalias: "b", Alias: "broken", ValidNotAfter: "not a date" },
+        { Hexalias: "c", Alias: "far", ValidNotAfter: `/Date(${Date.now() + 400 * day})/` },
+      ]);
+      const result = await handlers.get("list_keystore_entries")!({
+        keystoreName: "system",
+        expiringWithinDays: 30,
+      });
+      const text = result.content[0].text;
+      expect(text).toContain("Alias: offset");
+      expect(text).toContain("DaysUntilExpiry: 5");
+      expect(text).toContain("Alias: broken");
+      expect(text).toContain("unknown expiry");
+      expect(text).not.toContain("Alias: far");
+      expect(text.indexOf("Alias: offset")).toBeLessThan(text.indexOf("Alias: broken"));
+    });
+
+    it("treats a missing ValidNotAfter as no expiry, not as unknown", async () => {
+      mockODataClient.getCollection.mockResolvedValue([{ Hexalias: "a", Alias: "nodate", ValidNotAfter: null }]);
+      const result = await handlers.get("list_keystore_entries")!({ keystoreName: "system", expiringWithinDays: 30 });
+      expect(result.content[0].text).toContain("No keystore entries expire within 30 day(s)");
+    });
+
     it("reports when nothing expires within the window", async () => {
       mockODataClient.getCollection.mockResolvedValue([
         { Hexalias: "a", Alias: "far", ValidNotAfter: `/Date(${Date.now() + 400 * 86_400_000})/` },

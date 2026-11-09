@@ -52,6 +52,13 @@ describe("TenantManager", () => {
     expect(() => manager.setActiveTenant("prd")).toThrow("Unknown tenant: prd");
   });
 
+  it("does not treat Object.prototype members as tenants", () => {
+    for (const name of ["constructor", "toString", "__proto__"]) {
+      expect(() => manager.setActiveTenant(name), name).toThrow("Unknown tenant");
+      expect(() => new TenantManager({ ...testConfig, defaultTenant: name }), name).toThrow("not found");
+    }
+  });
+
   it("isActiveReadOnly reflects the active tenant", () => {
     const config: TenantConfig = {
       ...testConfig,
