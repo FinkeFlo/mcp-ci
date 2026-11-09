@@ -36,6 +36,13 @@ function normalizeTenant(key: string, raw: Record<string, unknown>): Tenant {
     }
   }
 
+  // allowTools next to settings instead of inside would silently leave the tenant unrestricted.
+  for (const field of Object.keys(raw)) {
+    if (field.toLowerCase() === "allowtools") {
+      throw new Error(`Tenant '${key}': '${field}' must be under 'settings'`);
+    }
+  }
+
   if (raw.name !== undefined && typeof raw.name !== "string") {
     throw new Error(`Tenant '${key}': 'name' must be a string`);
   }
@@ -148,7 +155,8 @@ export function parseTenantConfig(text: string, source = "tenant config"): Tenan
 /**
  * Checks and normalizes a config from any source (a `ConfigSource`, a library
  * caller) with the rules the file source applies, and returns a fresh copy.
- * Every tenant in `config` counts as enabled: the source already chose.
+ * A tenant with an `enabled` key other than `true` is dropped, as in the file;
+ * a tenant without one counts as enabled, since the source already chose.
  */
 export function validateTenantConfig(config: unknown, source = "tenant config"): TenantConfig {
   if (!isObject(config) || !isObject(config.tenants)) {
@@ -162,6 +170,9 @@ export function validateTenantConfig(config: unknown, source = "tenant config"):
     if (!isObject(entry)) {
       throw new Error(`${source}: tenant '${key}' must be an object`);
     }
+    // Same rule as the file: only the boolean true switches a tenant on. No key at all
+    // means the source already chose.
+    if (Object.hasOwn(entry, "enabled") && entry.enabled !== true) continue;
     tenants[key] = normalizeTenant(key, entry);
   }
   return finishConfig(tenants, config.defaultTenant, source, "no tenants configured");

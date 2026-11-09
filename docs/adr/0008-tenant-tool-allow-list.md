@@ -21,7 +21,9 @@ person may use only a few tools, or only the read tools, on one tenant. Listing 
 - The list only narrows. `readOnly` and `allowPayloads` still apply on top of it, so `["write"]` on a
   read-only tenant exposes nothing.
 - Fail closed: an unknown name, a wrong type or a misspelled setting key is a config error. If a
-  value that is not a list reaches the runtime without validation, it counts as an empty list.
+  value that is not a list reaches the runtime without validation, it counts as an empty list. An
+  `allowTools` key on the tenant itself instead of under `settings`, in any letter case, is a config
+  error, since it would otherwise leave the tenant unrestricted.
 - The tool list is not changed, so `npm run schema-budget` is unaffected.
 
 ## Consequences

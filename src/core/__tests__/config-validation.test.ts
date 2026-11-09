@@ -109,6 +109,45 @@ describe("validateTenantConfig", () => {
   });
 });
 
+describe("validateTenantConfig and enabled", () => {
+  const entry = (extra: Record<string, unknown>) => ({ name: "X", ...connection, ...extra });
+
+  it.each([[false], ["true"], [1], [null]])("drops a tenant whose enabled is %j", (enabled) => {
+    const result = validateTenantConfig({
+      tenants: { off: entry({ enabled }), on: entry({ enabled: true }) },
+      defaultTenant: "on",
+    });
+    expect(Object.keys(result.tenants)).toEqual(["on"]);
+  });
+
+  it("keeps a tenant without an enabled key, since the source already chose", () => {
+    expect(Object.keys(validateTenantConfig({ tenants: { a: entry({}) }, defaultTenant: "a" }).tenants)).toEqual(["a"]);
+  });
+
+  it("fails when the only or default tenant is disabled", () => {
+    expect(() => validateTenantConfig({ tenants: { a: entry({ enabled: false }) }, defaultTenant: "a" })).toThrow(NoTenantsError);
+    expect(() =>
+      validateTenantConfig({ tenants: { a: entry({ enabled: false }), b: entry({}) }, defaultTenant: "a" })
+    ).toThrow("default tenant 'a'");
+  });
+});
+
+describe("allowTools outside settings", () => {
+  it.each([["allowTools"], ["allowtools"], ["AllowTools"], ["ALLOWTOOLS"]])(
+    "rejects a tenant-level %s instead of ignoring it",
+    (key) => {
+      expect(() =>
+        validateTenantConfig({ tenants: { a: { name: "A", ...connection, [key]: ["read"] } }, defaultTenant: "a" })
+      ).toThrow(`'${key}' must be under 'settings'`);
+    }
+  );
+
+  it("rejects it in a file config too", () => {
+    const text = `{ "tenants": { "a": { "enabled": true, "apiUrl": "https://x", "oauthUrl": "https://x/t", "clientId": "i", "clientSecret": "s", "allowTools": [] } }, "defaultTenant": "a" }`;
+    expect(() => parseTenantConfig(text)).toThrow("'allowTools' must be under 'settings'");
+  });
+});
+
 describe("parseTenantConfig without an enabled tenant", () => {
   it("throws NoTenantsError with the existing message", () => {
     const text = `{ "tenants": { "a": { "enabled": false } }, "defaultTenant": "a" }`;

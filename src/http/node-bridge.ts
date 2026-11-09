@@ -1,13 +1,23 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
+/** Never handed on to the transport: tool handlers can read the request it sees. */
+const CREDENTIAL_HEADERS = new Set(["authorization", "proxy-authorization", "cookie"]);
+
 /**
  * Builds a web `Request` from a Node request. `body` is the already read body
  * text; without it the request has no body (what the authenticator gets).
+ * `stripCredentials` leaves out the headers that carry the caller's credential.
  */
-export function toWebRequest(req: IncomingMessage, origin: string, body?: string): Request {
+export function toWebRequest(
+  req: IncomingMessage,
+  origin: string,
+  body?: string,
+  options: { stripCredentials?: boolean } = {}
+): Request {
   const headers = new Headers();
   for (const [name, value] of Object.entries(req.headers)) {
     if (value === undefined) continue;
+    if (options.stripCredentials && CREDENTIAL_HEADERS.has(name)) continue;
     if (Array.isArray(value)) for (const entry of value) headers.append(name, entry);
     else headers.set(name, value);
   }

@@ -6,7 +6,7 @@ import { NoTenantsError } from "../core/config.js";
 import { assertPrincipal, type Authenticator, type Principal, type ServerOptions } from "../core/extension-points.js";
 import { createSessionFactory, type Session } from "../core/session-factory.js";
 import { readBody, sendWebResponse, toWebRequest } from "./node-bridge.js";
-import { SessionRegistry, type RegisteredSession } from "./session-registry.js";
+import { SessionRegistry, rolesKey, type RegisteredSession } from "./session-registry.js";
 
 const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
@@ -70,6 +70,8 @@ export async function startHttpServer(options: HttpServerOptions): Promise<Runni
 
   /** Keeps the session non-idle while a request or its stream is open. */
   const track = (session: RegisteredSession, res: ServerResponse) => {
+    // A client that is already gone would never fire `close` again.
+    if (res.destroyed) return;
     registry.beginRequest(session);
     res.once("close", () => registry.endRequest(session));
   };
@@ -88,13 +90,15 @@ export async function startHttpServer(options: HttpServerOptions): Promise<Runni
     res: ServerResponse,
     origin: string
   ): Promise<void> {
+    // Tracked before the body is read, so a slow upload keeps the session from idling out.
+    track(session, res);
     let body: string | undefined;
     if (req.method === "POST") {
       body = await readBody(req, MAX_BODY_BYTES);
       if (body === undefined) return reply(res, 413, "Request too large");
     }
-    track(session, res);
-    await sendWebResponse(res, await session.transport.handleRequest(toWebRequest(req, origin, body)));
+    const request = toWebRequest(req, origin, body, { stripCredentials: true });
+    await sendWebResponse(res, await session.transport.handleRequest(request));
   }
 
   async function newSession(
@@ -126,17 +130,30 @@ export async function startHttpServer(options: HttpServerOptions): Promise<Runni
       const transport: WebStandardStreamableHTTPServerTransport = new WebStandardStreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (id) => {
-          reservation.commit({ id, subject: principal.subject, server: session!.server, transport });
+          reservation.commit({
+            id,
+            subject: principal.subject,
+            roles: rolesKey(principal.roles),
+            server: session!.server,
+            transport,
+          });
         },
       });
       transport.onclose = () => {
         if (transport.sessionId) registry.remove(transport.sessionId);
       };
       await session.server.connect(transport);
-      const response = await transport.handleRequest(toWebRequest(req, origin, body), { parsedBody: parsed });
+      const response = await transport.handleRequest(
+        toWebRequest(req, origin, body, { stripCredentials: true }),
+        { parsedBody: parsed }
+      );
       const created = transport.sessionId ? registry.get(transport.sessionId) : undefined;
-      if (created) track(created, res);
-      else await session.server.close().catch(() => undefined);
+      // Nobody got the session id when the client left meanwhile, so nobody could end it.
+      if (!created || res.destroyed) {
+        await session.server.close().catch(() => undefined);
+        return;
+      }
+      track(created, res);
       await sendWebResponse(res, response);
     } catch (error) {
       await session?.server.close().catch(() => undefined);
@@ -166,6 +183,11 @@ export async function startHttpServer(options: HttpServerOptions): Promise<Runni
     const session = registry.get(header);
     if (!session) return reply(res, 404, "Session not found");
     if (session.subject !== principal.subject) return reply(res, 403, "Forbidden");
+    if (session.roles !== rolesKey(principal.roles)) {
+      // The session still holds the config of the old roles. End it, so the client starts a new one.
+      await session.server.close().catch(() => undefined);
+      return reply(res, 403, "Forbidden");
+    }
     return existingSession(session, req, res, origin);
   }
 

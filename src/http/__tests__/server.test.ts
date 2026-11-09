@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/server";
 import { startHttpServer, type RunningHttpServer, type HttpServerOptions } from "../server.js";
 import type { Authenticator, ConfigSource, Principal } from "../../core/extension-points.js";
 import type { Tenant, TenantConfig, TenantSettings } from "../../core/types.js";
@@ -363,5 +364,79 @@ describe("output", () => {
     for (const secret of ["token-alice", "wrong-token", "claim-marker-alice", "detail-xyz", "secret"]) {
       expect(output).not.toContain(secret);
     }
+  });
+});
+
+describe("review fixes", () => {
+  it("does not keep a session when the client disconnects during initialize", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let resolved = false;
+    const slow: ConfigSource = {
+      resolve: async (principal) => {
+        await gate;
+        resolved = true;
+        return configs[principal.subject] as TenantConfig;
+      },
+    };
+    const { server } = await start({ configSource: slow });
+    const controller = new AbortController();
+    const pending = fetch(server.url, {
+      method: "POST",
+      headers: { Authorization: "Bearer token-alice", "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      body: JSON.stringify(initializeBody),
+      signal: controller.signal,
+    }).catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    controller.abort();
+    await pending;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    release();
+    await vi.waitFor(() => expect(resolved).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(server.sessionCount()).toBe(0);
+  });
+
+  it("does not pass credentials on to the transport, and so not to tool handlers", async () => {
+    const seen: Request[] = [];
+    const original = WebStandardStreamableHTTPServerTransport.prototype.handleRequest;
+    vi.spyOn(WebStandardStreamableHTTPServerTransport.prototype, "handleRequest").mockImplementation(function (this: unknown, request, options) {
+      seen.push(request);
+      return original.call(this as never, request, options);
+    });
+    const { server } = await start();
+    const headers = { Cookie: "sid=cookie-secret", "Proxy-Authorization": "Basic proxy-secret" };
+    const init = await fetch(server.url, {
+      method: "POST",
+      headers: { ...headers, Authorization: "Bearer token-alice", "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      body: JSON.stringify(initializeBody),
+    });
+    const sessionId = init.headers.get("mcp-session-id")!;
+    await init.text();
+    await toolNames(server.url, "token-alice", sessionId);
+    expect(seen.length).toBeGreaterThanOrEqual(2);
+    for (const request of seen) {
+      for (const name of ["authorization", "cookie", "proxy-authorization"]) {
+        expect(request.headers.get(name)).toBeNull();
+      }
+    }
+  });
+
+  it("refuses and ends a session when the person's roles changed since it started", async () => {
+    let roles = ["writer"];
+    const authenticator: Authenticator = {
+      authenticate: async () => ({ subject: "alice", roles: [...roles], claims: {} }),
+    };
+    const { server } = await start({ authenticator });
+    const { sessionId } = await open(server.url, "token-any");
+    expect((await rpc(server.url, "token-any", sessionId, "tools/list")).status).toBe(200);
+    roles = ["writer"].reverse();
+    expect((await rpc(server.url, "token-any", sessionId, "tools/list")).status).toBe(200);
+    roles = ["reader"];
+    expect((await rpc(server.url, "token-any", sessionId, "tools/list")).status).toBe(403);
+    await vi.waitFor(() => expect(server.sessionCount()).toBe(0));
+    expect((await rpc(server.url, "token-any", sessionId, "tools/list")).status).toBe(404);
+    const again = await open(server.url, "token-any");
+    expect(again.reply.status).toBe(200);
   });
 });

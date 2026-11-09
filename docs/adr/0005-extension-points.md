@@ -30,7 +30,8 @@ stays generic: no organisation, identity provider or role concept may enter it.
 - Every config goes through `validateTenantConfig`, whoever produced it. `buildServer` calls it, so
   a `ConfigSource` cannot skip the fail-closed rules of ADR 0001 by returning an object directly.
   The result is a fresh copy, so a source that keeps handing out one object cannot change a running
-  session. Zero tenants raise `NoTenantsError`; the tenant key `__proto__` is refused.
+  session. Zero tenants raise `NoTenantsError`; the tenant key `__proto__` is refused; a tenant whose `enabled`
+  key is not `true` is dropped, as in the file (ADR 0002), while one without the key counts as enabled.
 - `Tenant.auth` is an opaque block that the core copies and never reads, so a downstream
   `TokenProvider` can find what it needs on the tenant. `clientId` and `clientSecret` stay required
   as the default credentials.

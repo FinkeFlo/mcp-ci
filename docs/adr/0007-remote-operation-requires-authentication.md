@@ -33,8 +33,13 @@ that caller every tenant it is configured for.
   `Mcp-Session-Id`, with a small Node bridge. The SDK's `createMcpHandler` builds a fresh server per
   request and has no sessions, so `set_tenant` would be lost. `@modelcontextprotocol/node` has no
   release matching the 2.4 server package and would add `hono`, so no dependency is added.
-- The core forwards no `authInfo` to the transport, so a credential does not reach tool handlers,
-  and the library writes no log output.
+- The request handed to the transport has `Authorization`, `Proxy-Authorization` and `Cookie`
+  removed, and the core forwards no `authInfo`, because tool handlers can read that request. Only
+  the authenticator sees the credential. The library writes no log output.
+- A session also remembers the roles its principal had when it started. A later request whose
+  authenticated roles differ gets 403 and ends the session, so the client starts a new one with the
+  config of the new roles. Without this, a demoted person would keep the old config for as long as
+  the session stays active.
 
 ## Consequences
 

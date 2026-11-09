@@ -1,9 +1,16 @@
 import type { McpServer, WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/server";
 
+/** Roles as an order-independent string, to tell whether a person's roles changed. */
+export function rolesKey(roles: string[]): string {
+  return JSON.stringify([...roles].sort());
+}
+
 /** One live HTTP session, bound to the subject that created it. */
 export interface RegisteredSession {
   id: string;
   subject: string;
+  /** The principal's roles when the session started, as one comparable string (see `rolesKey`). */
+  roles: string;
   server: McpServer;
   transport: WebStandardStreamableHTTPServerTransport;
   /** Requests and streams currently open on this session. */

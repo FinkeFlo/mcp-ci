@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import * as lib from "../lib.js";
 
 const root = new URL("../../", import.meta.url);
@@ -55,4 +57,22 @@ describe("package.json", () => {
     expect(pkg.bin["mcp-ci"]).toBe("dist/index.js");
     expect(pkg.mcpServer.command).toBe("npx");
   });
+});
+
+describe("build output", () => {
+  it("emits the type declarations that package.json promises", () => {
+    const outDir = mkdtempSync(join(tmpdir(), "mcp-ci-build-"));
+    try {
+      const result = spawnSync("npx", ["tsc", "-p", "tsconfig.build.json", "--outDir", outDir], {
+        cwd: root,
+        encoding: "utf-8",
+        timeout: 120_000,
+      });
+      expect(result.status, result.stdout + result.stderr).toBe(0);
+      expect(existsSync(join(outDir, "lib.js"))).toBe(true);
+      expect(existsSync(join(outDir, "lib.d.ts"))).toBe(true);
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  }, 150_000);
 });

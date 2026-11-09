@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { SessionRegistry, type RegisteredSession } from "../session-registry.js";
 
 const entry = (id: string, subject = "alice"): RegisteredSession =>
-  ({ id, subject, server: {}, transport: {} }) as unknown as RegisteredSession;
+  ({ id, subject, roles: "[]", server: {}, transport: {} }) as unknown as RegisteredSession;
 
 describe("SessionRegistry", () => {
   it("stops reserving at the limit, counting reservations that are not committed yet", () => {
