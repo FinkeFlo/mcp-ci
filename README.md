@@ -35,7 +35,7 @@ chmod 600 ~/.config/mcp-ci/tenants.jsonc
   "mcpServers": {
     "mcp-ci": {
       "command": "npx",
-      "args": ["-y", "github:FinkeFlo/mcp-ci"]
+      "args": ["-y", "github:FinkeFlo/mcp-ci#v0.1.0"]
     }
   }
 }
@@ -43,7 +43,7 @@ chmod 600 ~/.config/mcp-ci/tenants.jsonc
 
 npx clones and builds the package on first start, which takes a few seconds; later starts use the npm cache. To use another config file, add `"env": { "MCP_CI_CONFIG": "/path/to/tenants.jsonc" }`.
 
-> **Pin a version for real tenants.** `github:FinkeFlo/mcp-ci` follows `main`, so a new commit can run with your tenant credentials as soon as npx refreshes its cache. Use `github:FinkeFlo/mcp-ci#<tag or commit>` and update it on purpose.
+> **Keep the version pinned.** The example pins the release tag `v0.1.0`. Without `#<tag>`, `github:FinkeFlo/mcp-ci` follows `main`, so a new commit can run with your tenant credentials as soon as npx refreshes its cache. Update the tag on purpose; releases are listed under [tags](https://github.com/FinkeFlo/mcp-ci/tags).
 
 ### From a checkout
 
