@@ -25,6 +25,13 @@ export interface TenantSettings {
   readOnly?: boolean;
   allowPayloads?: boolean;
   denyTools?: string[];
+  /**
+   * Restricts the tenant to these tools or tool classes (`read`, `payload`,
+   * `write`), on top of `readOnly` and `allowPayloads`; it can only narrow
+   * them. Missing means no extra restriction, an empty list means only
+   * `get_tenant` and `set_tenant`. `denyTools` wins over it.
+   */
+  allowTools?: string[];
 }
 
 export interface TenantConfig {

@@ -11,14 +11,18 @@ export interface ToggleableTool {
   disable(): void;
 }
 
+/** Stay usable whatever `allowTools` says, so a session can always see and switch its tenant. */
+const TENANT_TOOLS = new Set(["get_tenant", "set_tenant"]);
+
 /** Returns `undefined` for names that are not in TOOL_CLASSES. */
 export function classifyTool(name: string): ToolAccessKind | undefined {
   return Object.hasOwn(TOOL_CLASSES, name) ? TOOL_CLASSES[name] : undefined;
 }
 
 /**
- * Hides tools the active tenant does not allow: tools in its `denyTools`, write
- * tools on read-only tenants, payload tools unless `allowPayloads` is set. Tools missing from
+ * Hides tools the active tenant does not allow: tools in its `denyTools`, tools
+ * outside its `allowTools`, write tools on read-only tenants, payload tools
+ * unless `allowPayloads` is set. Tools missing from
  * TOOL_CLASSES count as write (fail closed). The guarded server also checks
  * `isAllowed` on every call; for writes, ODataClient is the final guard.
  */
@@ -41,6 +45,11 @@ export class ToolAccess {
   isAllowed(name: string): boolean {
     if (this.tenantManager.isToolDenied(name)) return false;
     const kind = classifyTool(name) ?? "write";
+    const allowList = this.tenantManager.getAllowTools();
+    // The allow-list only narrows: the checks below still apply.
+    if (allowList && !TENANT_TOOLS.has(name) && !allowList.includes(name) && !allowList.includes(kind)) {
+      return false;
+    }
     if (kind === "read") return true;
     if (kind === "payload") return this.tenantManager.isActivePayloadAllowed();
     return !this.tenantManager.isActiveReadOnly();

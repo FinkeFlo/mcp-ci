@@ -22,7 +22,13 @@
         "allowPayloads": false,
         // Tools hidden and refused on this tenant, whatever readOnly and
         // allowPayloads say. Unknown names are a config error.
-        "denyTools": ["undeploy_runtime_artifact"]
+        "denyTools": ["undeploy_runtime_artifact"],
+        // Optional. Restricts the tenant to these tools or tool classes ("read",
+        // "payload", "write"); it can only narrow readOnly and allowPayloads, and
+        // denyTools wins. get_tenant and set_tenant always stay. Without it there is
+        // no extra restriction; an empty list leaves only those two. Unknown names
+        // are a config error.
+        // "allowTools": ["read"]
       },
       // Cloud Integration API URL (from the service key, "url").
       "apiUrl": "https://your-tenant.it-cpiXXX.cfapps.eu10-003.hana.ondemand.com",

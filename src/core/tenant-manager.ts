@@ -59,6 +59,16 @@ export class TenantManager {
     return this.getActiveTenant().settings?.denyTools?.includes(name) ?? false;
   }
 
+  /**
+   * The active tenant's allow-list, or `undefined` when it has none. A value
+   * that is not a list counts as an empty list (fail closed).
+   */
+  getAllowTools(): string[] | undefined {
+    const allowTools: unknown = this.getActiveTenant().settings?.allowTools;
+    if (allowTools === undefined) return undefined;
+    return Array.isArray(allowTools) ? allowTools.filter((entry) => typeof entry === "string") : [];
+  }
+
   /** Called after every successful `setActiveTenant`. */
   onActiveTenantChange(listener: (tenant: Tenant, key: string) => void): void {
     this.listeners.push(listener);

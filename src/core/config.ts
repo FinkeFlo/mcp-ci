@@ -7,7 +7,8 @@ import type { Tenant, TenantConfig } from "./types.js";
 import { TOOL_CLASSES } from "./tool-classes.js";
 
 const CONNECTION_FIELDS = ["apiUrl", "oauthUrl", "clientId", "clientSecret"] as const;
-const SETTINGS_KEYS = new Set(["readOnly", "allowPayloads", "denyTools"]);
+const SETTINGS_KEYS = new Set(["readOnly", "allowPayloads", "denyTools", "allowTools"]);
+const TOOL_CLASS_NAMES = new Set(["read", "payload", "write"]);
 
 /** No tenant to serve; the HTTP layer answers 403 for this and 503 for any other config error. */
 export class NoTenantsError extends Error {
@@ -64,6 +65,20 @@ function normalizeTenant(key: string, raw: Record<string, unknown>): Tenant {
       throw new Error(`Tenant '${key}': unknown tool '${tool}' in denyTools`);
     }
   }
+  let allowTools: string[] | undefined;
+  if (settings.allowTools !== undefined) {
+    const list = settings.allowTools;
+    if (!Array.isArray(list) || !list.every((entry) => typeof entry === "string")) {
+      throw new Error(`Tenant '${key}': 'allowTools' must be a list of tool or class names`);
+    }
+    // A typo must not silently hide a tool the tenant should have.
+    for (const entry of list as string[]) {
+      if (!Object.hasOwn(TOOL_CLASSES, entry) && !TOOL_CLASS_NAMES.has(entry)) {
+        throw new Error(`Tenant '${key}': unknown tool '${entry}' in allowTools`);
+      }
+    }
+    allowTools = [...(list as string[])];
+  }
   return {
     name: (raw.name as string | undefined) || key,
     apiUrl: raw.apiUrl as string,
@@ -77,6 +92,7 @@ function normalizeTenant(key: string, raw: Record<string, unknown>): Tenant {
       readOnly: settings.readOnly !== false,
       allowPayloads: settings.allowPayloads === true,
       denyTools: [...denyTools],
+      ...(allowTools === undefined ? {} : { allowTools }),
     },
   };
 }
