@@ -82,6 +82,18 @@ describe("monitoring tools", () => {
       expect(text).toContain("get_message");
     });
 
+    it("keeps columns intact when a field contains a pipe, and hides a custom status equal to status", async () => {
+      mockODataClient.getCollection.mockResolvedValue([
+        makeMpl({ MessageGuid: "g1", Status: "FAILED", CustomStatus: "FAILED", Sender: "A|B", Receiver: "C", IntegrationFlowName: "Flow|X" }),
+      ]);
+      const text = (await handlers.get("list_messages")!({})).content[0].text;
+      const row = text.split("\n").find((l: string) => l.endsWith("| g1"))!;
+      expect(row.split(" | ")).toHaveLength(5);
+      expect(row).toContain("Flow/X");
+      expect(row).toContain("A/B -> C");
+      expect(row).not.toContain("custom:");
+    });
+
     it("returns error on failure", async () => {
       mockODataClient.getCollection.mockRejectedValue(new Error("OData error (500): fail"));
       const result = await handlers.get("list_messages")!({});

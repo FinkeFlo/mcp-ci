@@ -2,8 +2,8 @@ export interface Scenario {
   id: string;
   /** An operator question, phrased the way a person would ask it. */
   question: string;
-  /** The first mcp-ci call must use one of `tools`, with at least `args`. */
-  expect: { tools: string[]; args?: Record<string, unknown> };
+  /** The first mcp-ci call must use one of `tools`, with at least `args`, and set every key in `present`. */
+  expect: { tools: string[]; args?: Record<string, unknown>; present?: string[] };
 }
 
 // Names and IDs are synthetic and match scripts/evals/mock-client.ts.
@@ -16,7 +16,13 @@ export const SCENARIOS: Scenario[] = [
   {
     id: "failed-messages-24h",
     question: "Could you please tell me which messages have failed in the last 24 hours?",
-    expect: { tools: ["get_errors"] },
+    // Without from, get_errors only looks at the last hour.
+    expect: { tools: ["get_errors"], present: ["from"] },
+  },
+  {
+    id: "failed-messages-of-flow",
+    question: "List each failed message of flow TestFlow_Orders with its message ID.",
+    expect: { tools: ["list_messages"], args: { status: "FAILED", flowName: "TestFlow_Orders" } },
   },
   {
     id: "failures-count",

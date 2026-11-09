@@ -41,8 +41,10 @@ function formatMessage(m: MessageProcessingLog): string {
 }
 
 function formatMessageLine(m: MessageProcessingLog): string {
+  // Free-text fields must not add columns.
+  const cell = (value: string | null | undefined) => (value ?? "n/a").replaceAll("|", "/");
   const status = m.CustomStatus && m.CustomStatus !== m.Status ? `${m.Status} (custom: ${m.CustomStatus})` : m.Status;
-  return [isoTime(m.LogEnd), status, m.IntegrationFlowName ?? "n/a", `${m.Sender ?? "n/a"} -> ${m.Receiver ?? "n/a"}`, m.MessageGuid].join(" | ");
+  return [isoTime(m.LogEnd), cell(status), cell(m.IntegrationFlowName), `${cell(m.Sender)} -> ${cell(m.Receiver)}`, m.MessageGuid].join(" | ");
 }
 
 function toQueryString(params: ODataParams): string {
@@ -112,7 +114,7 @@ export const monitoringModule: Module = {
       "list_messages",
       {
         description:
-          "List individual message processing logs matching filters, one line each. For which messages or flows failed recently and why, use get_errors; for totals, count_messages or aggregate_messages.",
+          "List individual messages, one line each, filtered by status (e.g. FAILED), flow, time window or IDs. For an overview of what failed and why, use get_errors; for totals, count_messages or aggregate_messages.",
         inputSchema: z.object({
           status: z
             .string()
