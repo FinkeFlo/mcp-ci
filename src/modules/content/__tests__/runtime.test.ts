@@ -105,7 +105,8 @@ describe("runtime artifact tools", () => {
     });
 
     it("summary counts artifacts by status and type without listing them", async () => {
-      mockODataClient.getCollection.mockResolvedValue([
+      mockODataClient.getCollection.mockResolvedValue([]);
+      mockODataClient.getCollection.mockResolvedValueOnce([
         { Status: "STARTED", Type: "INTEGRATION_FLOW" },
         { Status: "STARTED", Type: "INTEGRATION_FLOW" },
         { Status: "ERROR", Type: "INTEGRATION_FLOW" },
@@ -113,12 +114,25 @@ describe("runtime artifact tools", () => {
       ]);
       const text = (await handlers.get("list_runtime_artifacts")!({ summary: true, filter: "Type eq 'INTEGRATION_FLOW'" })).content[0].text;
       const [, params] = mockODataClient.getCollection.mock.calls[0];
-      expect(params).toEqual({ $filter: "Type eq 'INTEGRATION_FLOW'", $select: "Status,Type" });
+      expect(params).toEqual({ $filter: "Type eq 'INTEGRATION_FLOW'", $select: "Status,Type", $top: 1000, $skip: 0 });
       expect(text).toContain("4 artifact(s)");
       expect(text).toContain("STARTED: 3");
       expect(text).toContain("ERROR: 1");
       expect(text).toContain("INTEGRATION_FLOW: 3");
       expect(text).toContain("VALUE_MAPPING: 1");
+    });
+
+    it("summary pages through every server page, even if the server caps the page size", async () => {
+      const rows = (n: number, status: string) => Array.from({ length: n }, () => ({ Status: status, Type: "INTEGRATION_FLOW" }));
+      // The server returns at most 3 rows per request, whatever $top asks for.
+      mockODataClient.getCollection
+        .mockResolvedValueOnce(rows(3, "STARTED"))
+        .mockResolvedValueOnce(rows(3, "STARTED"))
+        .mockResolvedValueOnce(rows(1, "ERROR"));
+      const text = (await handlers.get("list_runtime_artifacts")!({ summary: true })).content[0].text;
+      expect(text).toContain("7 artifact(s)");
+      expect(text).toContain("ERROR: 1");
+      expect(mockODataClient.getCollection.mock.calls.map(([, p]) => p.$skip)).toEqual([0, 3, 6]);
     });
 
     it("returns empty message when no artifacts found", async () => {

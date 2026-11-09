@@ -19,6 +19,8 @@ function parseODataDate(value: string | null): string {
 
 const ARTIFACT_FIELDS = ["Id", "Name", "Version", "Type", "Status", "DeployedBy", "DeployedOn"] as const;
 const PAGE_SIZE = 100;
+const SUMMARY_PAGE = 1000;
+const SUMMARY_MAX_PAGES = 50;
 
 /** Fields missing from the response (not selected) are left out; null shows as n/a. */
 function formatArtifact(a: IntegrationRuntimeArtifact): string {
@@ -47,7 +49,7 @@ export function registerRuntimeTools(
         summary: z
           .boolean()
           .optional()
-          .describe("Only return counts by Status and Type (respects filter)"),
+          .describe("Only return counts by Status and Type over all artifacts (respects filter; ignores select, orderby, top, skip)"),
         filter: z
           .string()
           .optional()
@@ -72,11 +74,20 @@ export function registerRuntimeTools(
     },
     textTool(async ({ summary, filter, select, orderby, top, skip }) => {
       if (summary) {
-        const all =
-          await context.odataClient.getCollection<IntegrationRuntimeArtifact>(
-            buildRuntimeArtifactsPath(),
-            { $filter: filter, $select: "Status,Type" }
-          );
+        // getCollection returns one server page, and the server may cap it
+        // below $top, so keep paging until a page comes back short.
+        const all: IntegrationRuntimeArtifact[] = [];
+        let pageLength = 0;
+        for (let page = 0; page < SUMMARY_MAX_PAGES; page++) {
+          const rows =
+            await context.odataClient.getCollection<IntegrationRuntimeArtifact>(
+              buildRuntimeArtifactsPath(),
+              { $filter: filter, $select: "Status,Type", $top: SUMMARY_PAGE, $skip: all.length }
+            );
+          all.push(...rows);
+          if (page === 0) pageLength = rows.length;
+          if (rows.length === 0 || rows.length < pageLength) break;
+        }
         if (all.length === 0) return "No deployed artifacts found.";
         return `${all.length} artifact(s)\n\nBy status:\n${countBy(all, "Status")}\n\nBy type:\n${countBy(all, "Type")}`;
       }
