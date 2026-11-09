@@ -64,9 +64,16 @@ npm test            # vitest
 npm run typecheck   # type check (app + scripts)
 npm run coverage    # API coverage report (requires the SAP specs, see docs/api/README.md)
 npm run schema-budget  # size of the tool list a client receives, checked in CI
+npm run test:eval   # tool-selection evals against mock data (calls a model, costs money)
 ```
 
 Every tool's name, description and input schema is sent to the model on each turn. `npm run schema-budget` measures the `tools/list` result for a read-only tenant and for a writable tenant with payloads allowed, and fails when it exceeds `scripts/schema-budget/budget.json` (currently 141 tools / ~64k chars read-only, 230 tools / ~118k chars with everything enabled). Raise the budget only on purpose, in the PR that needs it.
+
+### Tool-selection evals
+
+How well a model picks a tool depends almost entirely on tool and parameter descriptions. `npm run test:eval` asks a model the operator questions in `scripts/evals/scenarios.ts` and checks whether its first mcp-ci call uses the expected tool and arguments. It runs `claude -p` (Claude Code CLI, logged in) against the real server with a read-only eval tenant and synthetic data from `scripts/evals/mock-client.ts`, so it needs no tenant or credentials. Options: `--model`, `--only <id,id>`, `--budget <usd per scenario>`.
+
+It is not part of `npm test`: it costs money and a model's choice varies between runs. A pass shows that the descriptions led the model to the right first call on these questions, not that the answer was correct or that other models behave the same. When you change a tool's description, add or adjust a scenario.
 
 ## License
 
