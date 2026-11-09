@@ -19,6 +19,34 @@ An [MCP](https://modelcontextprotocol.io) server for **SAP Cloud Integration** (
 
 ## Setup
 
+### With npx (no checkout)
+
+Create the tenant config in your user config directory, then point your MCP client at the GitHub repository:
+
+```sh
+mkdir -p ~/.config/mcp-ci
+curl -fsSL -o ~/.config/mcp-ci/tenants.jsonc https://raw.githubusercontent.com/FinkeFlo/mcp-ci/main/config/tenants.example.jsonc
+chmod 600 ~/.config/mcp-ci/tenants.jsonc
+# edit ~/.config/mcp-ci/tenants.jsonc with your tenant URL and OAuth credentials
+```
+
+```json
+{
+  "mcpServers": {
+    "mcp-ci": {
+      "command": "npx",
+      "args": ["-y", "github:FinkeFlo/mcp-ci"]
+    }
+  }
+}
+```
+
+npx clones and builds the package on first start, which takes a few seconds; later starts use the npm cache. To use another config file, add `"env": { "MCP_CI_CONFIG": "/path/to/tenants.jsonc" }`.
+
+> **Pin a version for real tenants.** `github:FinkeFlo/mcp-ci` follows `main`, so a new commit can run with your tenant credentials as soon as npx refreshes its cache. Use `github:FinkeFlo/mcp-ci#<tag or commit>` and update it on purpose.
+
+### From a checkout
+
 ```sh
 npm install
 cp config/tenants.example.jsonc config/tenants.jsonc
@@ -26,7 +54,9 @@ cp config/tenants.example.jsonc config/tenants.jsonc
 npm start
 ```
 
-`config/tenants.jsonc` is gitignored and may contain comments. You can configure several tenants and switch between them at runtime with the `set_tenant` tool. Set `MCP_CI_CONFIG` to load a different file.
+`config/tenants.jsonc` is gitignored and may contain comments. You can configure several tenants and switch between them at runtime with the `set_tenant` tool.
+
+The config is looked up in this order: `MCP_CI_CONFIG`, then `config/tenants.jsonc` in the checkout, then `$XDG_CONFIG_HOME/mcp-ci/tenants.jsonc` (default `~/.config/mcp-ci/tenants.jsonc`). A `config/tenants.jsonc` in a checkout (also one used through `npm link`) therefore wins over the one in your user config directory; set `MCP_CI_CONFIG` to force a specific file.
 
 ### Tenant settings
 
@@ -37,7 +67,7 @@ npm start
 
 The read-only guarantee covers tool calls through a correctly configured server. It does not protect against someone who can edit the config file, change `MCP_CI_CONFIG` or start their own server process.
 
-### Using it from an MCP client
+### Using a checkout from an MCP client
 
 ```json
 {
@@ -51,7 +81,7 @@ The read-only guarantee covers tool calls through a correctly configured server.
 }
 ```
 
-The server communicates over stdio.
+The server communicates over stdio. With npx, use the configuration under [With npx](#with-npx-no-checkout).
 
 > **Note:** Some tools change tenant state. They can deploy and undeploy artifacts, delete entries, and update credentials. Use an OAuth client with only the permissions you need.
 

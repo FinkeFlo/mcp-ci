@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { homedir } from "node:os";
+import { resolve, dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse, printParseErrorCode, type ParseError } from "jsonc-parser";
 import type { Tenant, TenantConfig } from "./types.js";
@@ -105,16 +106,28 @@ export function parseTenantConfig(text: string, source = "tenant config"): Tenan
   return { tenants, defaultTenant };
 }
 
-/** `MCP_CI_CONFIG` wins; otherwise `config/tenants.jsonc`. */
+/**
+ * `MCP_CI_CONFIG` wins; otherwise `config/tenants.jsonc` next to the package
+ * (a checkout), then `$XDG_CONFIG_HOME/mcp-ci/tenants.jsonc` (default
+ * `~/.config`), which is where an installed package looks.
+ */
 export function resolveConfigPath(
   env: NodeJS.ProcessEnv,
   baseDir: string,
-  exists: (path: string) => boolean
+  exists: (path: string) => boolean,
+  home: string = homedir()
 ): string {
   if (env.MCP_CI_CONFIG) return resolve(env.MCP_CI_CONFIG);
-  const jsonc = resolve(baseDir, "config/tenants.jsonc");
-  if (exists(jsonc)) return jsonc;
-  throw new Error(`No tenant config found at ${jsonc}. Copy config/tenants.example.jsonc to start.`);
+  const candidates = [
+    resolve(baseDir, "config/tenants.jsonc"),
+    // The XDG spec says to ignore a relative XDG_CONFIG_HOME.
+    resolve(env.XDG_CONFIG_HOME && isAbsolute(env.XDG_CONFIG_HOME) ? env.XDG_CONFIG_HOME : join(home, ".config"), "mcp-ci/tenants.jsonc"),
+  ];
+  const found = candidates.find(exists);
+  if (found) return found;
+  throw new Error(
+    `No tenant config found. Checked: ${candidates.join(", ")}. Create one from the example (see https://github.com/FinkeFlo/mcp-ci#setup) or set MCP_CI_CONFIG.`
+  );
 }
 
 export function loadTenantConfig(): TenantConfig {

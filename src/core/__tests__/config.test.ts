@@ -188,7 +188,25 @@ describe("resolveConfigPath", () => {
     expect(() => resolveConfigPath({}, base, (p) => p === json)).not.toThrow(/tenants\.json[^c]/);
   });
 
-  it("throws naming the path checked", () => {
-    expect(() => resolveConfigPath({}, base, () => false)).toThrow(`No tenant config found at ${jsonc}`);
+  it("falls back to the user config, also under XDG_CONFIG_HOME", () => {
+    const user = resolve("/home/me/.config/mcp-ci/tenants.jsonc");
+    expect(resolveConfigPath({}, base, (p) => p === user, "/home/me")).toBe(user);
+    const xdg = resolve("/xdg/mcp-ci/tenants.jsonc");
+    expect(resolveConfigPath({ XDG_CONFIG_HOME: "/xdg" }, base, (p) => p === xdg, "/home/me")).toBe(xdg);
+  });
+
+  it("ignores a relative XDG_CONFIG_HOME, as the XDG spec says", () => {
+    const user = resolve("/home/me/.config/mcp-ci/tenants.jsonc");
+    expect(resolveConfigPath({ XDG_CONFIG_HOME: "relative/dir" }, base, (p) => p === user, "/home/me")).toBe(user);
+  });
+
+  it("prefers the repository config over the user config", () => {
+    expect(resolveConfigPath({}, base, () => true, "/home/me")).toBe(jsonc);
+  });
+
+  it("throws naming every path checked", () => {
+    expect(() => resolveConfigPath({}, base, () => false, "/home/me")).toThrow(
+      `No tenant config found. Checked: ${jsonc}, ${resolve("/home/me/.config/mcp-ci/tenants.jsonc")}`
+    );
   });
 });
