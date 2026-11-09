@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { ModuleContext, Module } from "../../core/types.js";
 import { textTool } from "../../core/tool.js";
+import { SERVER_VERSION } from "../../version.js";
 
 export const tenantModule: Module = {
   name: "tenant",
@@ -11,14 +12,14 @@ export const tenantModule: Module = {
       "get_tenant",
       {
         description:
-          "Show the currently active SAP CPI tenant and list all available tenants",
+          "Show the active SAP CPI tenant, all available tenants and the running server version",
         inputSchema: z.object({}),
       },
       textTool(async () => {
         const active = context.tenantManager.getActiveTenantKey();
         const all = context.tenantManager.listTenants();
         const tenant = context.tenantManager.getActiveTenant();
-        return `Active tenant: ${active} (${tenant.name})\nAPI URL: ${tenant.apiUrl}\nAvailable tenants: ${all.join(", ")}`;
+        return `Active tenant: ${active} (${tenant.name})\nAPI URL: ${tenant.apiUrl}\nAvailable tenants: ${all.join(", ")}\nServer version: ${SERVER_VERSION}`;
       })
     );
 

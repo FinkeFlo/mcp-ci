@@ -75,6 +75,11 @@ export const SCENARIOS: Scenario[] = [
     expect: { tools: ["list_package_value_mappings"], args: { packageId: "PKG_A" } },
   },
   {
+    id: "server-version",
+    question: "Which version of the mcp-ci server is running?",
+    expect: { tools: ["get_tenant"] },
+  },
+  {
     id: "which-tenant",
     question: "Which tenant am I connected to, and is it read-only?",
     expect: { tools: ["get_tenant"] },
