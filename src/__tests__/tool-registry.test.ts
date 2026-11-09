@@ -82,7 +82,7 @@ describe("tool registry", () => {
   it("every registered tool has an entry in TOOL_CLASSES", () => {
     const names = registeredToolNames();
     expect(names.length).toBeGreaterThan(200);
-    const missing = names.filter((name) => !(name in TOOL_CLASSES)).map((name) => `${name}: "${classByPrefix(name)}"`);
+    const missing = names.filter((name) => !Object.hasOwn(TOOL_CLASSES, name)).map((name) => `${name}: "${classByPrefix(name)}"`);
     expect(missing, "add these to src/core/tool-classes.ts (suggested class from the name)").toEqual([]);
   });
 
