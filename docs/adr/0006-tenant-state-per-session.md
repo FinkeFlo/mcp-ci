@@ -29,4 +29,7 @@ one, including for a call that is still running while the other session switches
 - Sessions live in memory. A deployment runs one instance or routes a session to the same instance
   (sticky sessions); sharing sessions across instances is not solved.
 - A session reads its config once, at creation. A changed config applies to new sessions.
+- The default token provider uses a technical OAuth client, so its token is shared by every session whose
+  tenant names the same token endpoint and client id. Tokens that identify a person need a custom
+  `TokenProvider`, which receives the principal; the core does not partition tokens by person.
 - Cost per session is one server with every tool registered; the session limit of ADR 0007 bounds it.

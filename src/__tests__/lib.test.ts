@@ -22,6 +22,7 @@ describe("library entry", () => {
         "createSessionFactory",
         "loadTenantConfig",
         "parseTenantConfig",
+        "startHttpServer",
         "validateTenantConfig",
       ].sort()
     );

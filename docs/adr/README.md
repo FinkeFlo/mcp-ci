@@ -12,5 +12,6 @@ changes: a new record supersedes it and says so.
 | [0004](0004-explicit-tool-classes.md) | Tool access comes from an explicit class table | Accepted |
 | [0005](0005-extension-points.md) | Extension points: `ConfigSource`, `TokenProvider`, `Authenticator`, `Principal` | Proposed |
 | [0006](0006-tenant-state-per-session.md) | Tenant state is per session | Proposed |
+| [0007](0007-remote-operation-requires-authentication.md) | Remote operation requires authentication | Proposed |
 
 New records copy [template.md](template.md) and take the next number.
