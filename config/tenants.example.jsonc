@@ -15,7 +15,11 @@
         // "false", a missing or misspelled key, no "settings" at all) makes it
         // read-only: every request except GET is blocked, so no create, update,
         // delete or deploy reaches it, and write tools are hidden while it is active.
-        "readOnly": false
+        "readOnly": false,
+        // Only the boolean true exposes tools that return message content,
+        // attachments, traces, data store entries, log files or keystore exports.
+        // Independent of readOnly.
+        "allowPayloads": false
       },
       // Cloud Integration API URL (from the service key, "url").
       "apiUrl": "https://your-tenant.it-cpiXXX.cfapps.eu10-003.hana.ondemand.com",

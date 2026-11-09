@@ -17,6 +17,7 @@ const config: TenantConfig = {
   tenants: {
     prod: { name: "PROD", ...connection, settings: { readOnly: true } },
     dev: { name: "DEV", ...connection, settings: { readOnly: false } },
+    support: { name: "SUPPORT", ...connection, settings: { readOnly: true, allowPayloads: true } },
   },
   defaultTenant: "prod",
 };
@@ -38,10 +39,19 @@ function setup() {
   const access = new ToolAccess(tenantManager);
   const { server, handles } = fakeServer();
   const guarded = createGuardedServer(server, access);
-  for (const name of ["get_package", "create_package", "frobnicate_x"]) {
-    guarded.registerTool(name, {}, async () => ({ content: [] }));
+  const calls: string[] = [];
+  for (const name of ["get_package", "create_package", "frobnicate_x", "get_trace"]) {
+    guarded.registerTool(name, {}, async () => {
+      calls.push(name);
+      return { content: [] };
+    });
   }
-  return { tenantManager, handles };
+  // The callback the real server would invoke is the guarded wrapper.
+  const invoke = (name: string) => {
+    const call = (server.registerTool as unknown as ReturnType<typeof vi.fn>).mock.calls.find(([n]) => n === name)!;
+    return (call[2] as () => Promise<{ content: unknown[]; isError?: boolean }>)();
+  };
+  return { tenantManager, handles, calls, invoke };
 }
 
 describe("ToolAccess with a guarded server", () => {
@@ -72,6 +82,68 @@ describe("ToolAccess with a guarded server", () => {
     tenantManager.setActiveTenant("prod");
     expect(create.disable).toHaveBeenCalledTimes(1);
     expect(handles.get("get_package")!.disable).not.toHaveBeenCalled();
+  });
+
+  it("payload tools are hidden unless the tenant allows payloads, independent of readOnly", () => {
+    const { tenantManager, handles } = setup();
+    const trace = handles.get("get_trace")!;
+    expect(trace.disable).toHaveBeenCalled();
+    trace.disable.mockClear();
+
+    tenantManager.setActiveTenant("dev");
+    expect(trace.disable).toHaveBeenCalledTimes(1);
+    expect(trace.enable).not.toHaveBeenCalled();
+
+    const create = handles.get("create_package")!;
+    create.enable.mockClear();
+    tenantManager.setActiveTenant("support");
+    expect(trace.enable).toHaveBeenCalledTimes(1);
+    // support is read-only: payloads yes, writes still no.
+    expect(create.disable).toHaveBeenCalled();
+    expect(create.enable).not.toHaveBeenCalled();
+  });
+
+  it("blocks a hidden tool at call time without running its handler", async () => {
+    const { tenantManager, calls, invoke } = setup();
+    for (const name of ["get_trace", "create_package", "frobnicate_x"]) {
+      const result = await invoke(name);
+      expect(result.isError, name).toBe(true);
+      expect(JSON.stringify(result.content)).toContain("not allowed on tenant 'prod'");
+    }
+    expect(calls).toEqual([]);
+
+    await invoke("get_package");
+    tenantManager.setActiveTenant("support");
+    await invoke("get_trace");
+    expect(calls).toEqual(["get_package", "get_trace"]);
+  });
+
+  it("a restricted call keeps the tenant it was checked against, even if set_tenant runs meanwhile", async () => {
+    const tenantManager = new TenantManager({ ...config, defaultTenant: "support" });
+    const { server } = fakeServer();
+    const guarded = createGuardedServer(server, new ToolAccess(tenantManager));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const seen: string[] = [];
+    guarded.registerTool("get_trace", {}, async () => {
+      await gate;
+      seen.push(tenantManager.getActiveTenantKey(), String(tenantManager.isActivePayloadAllowed()));
+      return { content: [] };
+    });
+    const handler = (server.registerTool as unknown as ReturnType<typeof vi.fn>).mock.calls[0][2] as () => Promise<unknown>;
+    const call = handler();
+    tenantManager.setActiveTenant("prod");
+    release();
+    await call;
+    expect(seen).toEqual(["support", "true"]);
+    expect(tenantManager.getActiveTenantKey()).toBe("prod");
+  });
+
+  it("refuses to register a restricted tool whose handler cannot be wrapped", () => {
+    const { server } = fakeServer();
+    const guarded = createGuardedServer(server, new ToolAccess(new TenantManager(config)));
+    expect(() => guarded.registerTool("get_trace", {} as never, {} as never)).toThrow(/get_trace.*handler/);
+    expect(() => guarded.registerTool("get_package", {} as never, {} as never)).not.toThrow();
   });
 
   it("the registerTool return value is passed through", () => {

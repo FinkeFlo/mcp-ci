@@ -1,9 +1,12 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { Tenant, TenantConfig } from "./types.js";
 
 export class TenantManager {
   private config: TenantConfig;
   private activeTenantKey: string;
   private listeners: Array<(tenant: Tenant, key: string) => void> = [];
+  // Tenant a running tool call was checked against; wins over activeTenantKey.
+  private pinned = new AsyncLocalStorage<string>();
 
   constructor(config: TenantConfig) {
     if (!config.tenants[config.defaultTenant]) {
@@ -16,11 +19,19 @@ export class TenantManager {
   }
 
   getActiveTenant(): Tenant {
-    return this.config.tenants[this.activeTenantKey];
+    return this.config.tenants[this.getActiveTenantKey()];
   }
 
   getActiveTenantKey(): string {
-    return this.activeTenantKey;
+    return this.pinned.getStore() ?? this.activeTenantKey;
+  }
+
+  /**
+   * Runs `fn` with the current tenant pinned: everything inside, including
+   * awaited work, sees this tenant even if `setActiveTenant` runs meanwhile.
+   */
+  runPinned<T>(fn: () => T): T {
+    return this.pinned.run(this.getActiveTenantKey(), fn);
   }
 
   setActiveTenant(key: string): void {
@@ -37,6 +48,11 @@ export class TenantManager {
   isActiveReadOnly(): boolean {
     // Fail closed: only an explicit false makes the tenant writable.
     return this.getActiveTenant().settings?.readOnly !== false;
+  }
+
+  isActivePayloadAllowed(): boolean {
+    // Fail closed: only an explicit true exposes payload tools.
+    return this.getActiveTenant().settings?.allowPayloads === true;
   }
 
   /** Called after every successful `setActiveTenant`. */

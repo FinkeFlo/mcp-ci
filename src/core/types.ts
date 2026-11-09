@@ -17,6 +17,7 @@ export interface TenantSettings {
    * A missing value counts as read-only.
    */
   readOnly?: boolean;
+  allowPayloads?: boolean;
 }
 
 export interface TenantConfig {

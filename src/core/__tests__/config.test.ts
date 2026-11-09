@@ -71,7 +71,22 @@ describe("parseTenantConfig", () => {
     ];
     for (const [settings, readOnly] of cases) {
       const parsed = parseTenantConfig(config(`"enabled": true, ${settings} ${connection}`));
-      expect(parsed.tenants.prod.settings, `settings: ${settings || "(missing)"}`).toEqual({ readOnly });
+      expect(parsed.tenants.prod.settings, `settings: ${settings || "(missing)"}`).toEqual({ readOnly, allowPayloads: false });
+    }
+  });
+
+  it("allowPayloads is fail closed: only true allows payloads", () => {
+    const cases: Array<[string, boolean]> = [
+      [`"settings": { "allowPayloads": true },`, true],
+      [`"settings": { "allowPayloads": false },`, false],
+      [`"settings": { "allowPayloads": "true" },`, false],
+      [`"settings": { "allowPayloads": 1 },`, false],
+      [`"settings": {},`, false],
+      ["", false],
+    ];
+    for (const [settings, allowPayloads] of cases) {
+      const parsed = parseTenantConfig(config(`"enabled": true, ${settings} ${connection}`));
+      expect(parsed.tenants.prod.settings?.allowPayloads, `settings: ${settings || "(missing)"}`).toBe(allowPayloads);
     }
   });
 

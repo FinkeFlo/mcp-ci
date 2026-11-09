@@ -65,6 +65,19 @@ describe("TenantManager", () => {
     expect(m.isActiveReadOnly()).toBe(false);
   });
 
+  it("isActivePayloadAllowed is true only with allowPayloads: true", () => {
+    const m = new TenantManager({
+      tenants: {
+        on: { ...testConfig.tenants.dev, settings: { allowPayloads: true } },
+        off: { ...testConfig.tenants.dev, settings: { readOnly: false } },
+      },
+      defaultTenant: "on",
+    });
+    expect(m.isActivePayloadAllowed()).toBe(true);
+    m.setActiveTenant("off");
+    expect(m.isActivePayloadAllowed()).toBe(false);
+  });
+
   it("a tenant without settings counts as read-only", () => {
     const m = new TenantManager({
       tenants: { bare: { ...testConfig.tenants.dev, settings: undefined } },

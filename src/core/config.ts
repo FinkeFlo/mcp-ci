@@ -5,7 +5,7 @@ import { parse, printParseErrorCode, type ParseError } from "jsonc-parser";
 import type { Tenant, TenantConfig } from "./types.js";
 
 const CONNECTION_FIELDS = ["apiUrl", "oauthUrl", "clientId", "clientSecret"] as const;
-const SETTINGS_KEYS = new Set(["readOnly"]);
+const SETTINGS_KEYS = new Set(["readOnly", "allowPayloads"]);
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -46,8 +46,9 @@ function normalizeTenant(key: string, raw: Record<string, unknown>): Tenant {
     oauthUrl: raw.oauthUrl as string,
     clientId: raw.clientId as string,
     clientSecret: raw.clientSecret as string,
-    // Fail closed: only an explicit false makes the tenant writable.
-    settings: { readOnly: settings.readOnly !== false },
+    // Fail closed: only an explicit false makes the tenant writable, and only
+    // an explicit true exposes message, store and log content.
+    settings: { readOnly: settings.readOnly !== false, allowPayloads: settings.allowPayloads === true },
   };
 }
 
