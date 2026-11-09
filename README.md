@@ -57,6 +57,8 @@ The server communicates over stdio.
 
 ## Development
 
+Design decisions and their reasons are recorded in [docs/adr](docs/adr/README.md).
+
 ```sh
 npm test            # vitest
 npm run typecheck   # type check (app + scripts)
