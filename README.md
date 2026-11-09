@@ -26,7 +26,7 @@ cp config/tenants.example.jsonc config/tenants.jsonc
 npm start
 ```
 
-`config/tenants.jsonc` is gitignored and may contain comments. You can configure several tenants and switch between them at runtime with the `set_tenant` tool. Set `MCP_CI_CONFIG` to load a different file. An existing `config/tenants.json` is still read when no `tenants.jsonc` exists.
+`config/tenants.jsonc` is gitignored and may contain comments. You can configure several tenants and switch between them at runtime with the `set_tenant` tool. Set `MCP_CI_CONFIG` to load a different file.
 
 ### Tenant settings
 

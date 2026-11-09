@@ -89,32 +89,20 @@ export function parseTenantConfig(text: string, source = "tenant config"): Tenan
   return { tenants, defaultTenant };
 }
 
-/**
- * `MCP_CI_CONFIG` wins; otherwise `config/tenants.jsonc`, then the legacy
- * `config/tenants.json`.
- */
+/** `MCP_CI_CONFIG` wins; otherwise `config/tenants.jsonc`. */
 export function resolveConfigPath(
   env: NodeJS.ProcessEnv,
   baseDir: string,
   exists: (path: string) => boolean
-): { path: string; legacy: boolean } {
-  if (env.MCP_CI_CONFIG) {
-    return { path: resolve(env.MCP_CI_CONFIG), legacy: false };
-  }
+): string {
+  if (env.MCP_CI_CONFIG) return resolve(env.MCP_CI_CONFIG);
   const jsonc = resolve(baseDir, "config/tenants.jsonc");
-  if (exists(jsonc)) return { path: jsonc, legacy: false };
-  const json = resolve(baseDir, "config/tenants.json");
-  if (exists(json)) return { path: json, legacy: true };
-  throw new Error(`No tenant config found. Checked: ${jsonc}, ${json}`);
+  if (exists(jsonc)) return jsonc;
+  throw new Error(`No tenant config found at ${jsonc}. Copy config/tenants.example.jsonc to start.`);
 }
 
 export function loadTenantConfig(): TenantConfig {
   const baseDir = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-  const { path, legacy } = resolveConfigPath(process.env, baseDir, existsSync);
-  if (legacy) {
-    console.error(
-      `Using legacy ${path}. Rename it to tenants.jsonc to allow comments.`
-    );
-  }
+  const path = resolveConfigPath(process.env, baseDir, existsSync);
   return parseTenantConfig(readFileSync(path, "utf-8"), path);
 }
