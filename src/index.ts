@@ -1,51 +1,15 @@
-import { readFileSync } from "node:fs";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
-import { McpServer } from "@modelcontextprotocol/server";
-import { TenantManager } from "./core/tenant-manager.js";
-import { Auth } from "./core/auth.js";
-import { ODataClient } from "./core/odata-client.js";
-import { tenantModule } from "./modules/tenant/tools.js";
-import { monitoringModule } from "./modules/monitoring/tools.js";
-import { tracingModule } from "./modules/tracing/tools.js";
-import { idMapperModule } from "./modules/idmapper/tools.js";
-import { idempotentModule } from "./modules/idempotent/tools.js";
-import { loggingModule } from "./modules/logging/tools.js";
-import { archivingModule } from "./modules/archiving/tools.js";
-import { contentModule } from "./modules/content/index.js";
-import { logfilesModule } from "./modules/logfiles/tools.js";
-import { securityModule } from "./modules/security/index.js";
-import { messagestoreModule } from "./modules/messagestore/index.js";
-import { b2bModule } from "./modules/b2b/index.js";
-import type { TenantConfig, ModuleContext, Module } from "./core/types.js";
+import { loadTenantConfig } from "./core/config.js";
+import { buildServer } from "./server.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-function loadTenantConfig(): TenantConfig {
-  const configPath = resolve(__dirname, "../config/tenants.json");
-  const raw = readFileSync(configPath, "utf-8");
-  return JSON.parse(raw) as TenantConfig;
-}
-
-const config = loadTenantConfig();
-const tenantManager = new TenantManager(config);
-const auth = new Auth();
-const odataClient = new ODataClient(auth, tenantManager);
-
-const server = new McpServer({ name: "mcp-ci", version: "0.1.0" });
-const context: ModuleContext = { tenantManager, odataClient };
-const modules: Module[] = [tenantModule, monitoringModule, tracingModule, idMapperModule, idempotentModule, loggingModule, archivingModule, contentModule, logfilesModule, securityModule, messagestoreModule, b2bModule];
-
-for (const mod of modules) {
-  mod.register(server, context);
-}
+const { server, tenantManager } = buildServer(loadTenantConfig());
 
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  const readOnly = tenantManager.isActiveReadOnly() ? ", read-only" : "";
   console.error(
-    `mcp-ci server running on stdio (tenant: ${tenantManager.getActiveTenantKey()})`
+    `mcp-ci server running on stdio (tenant: ${tenantManager.getActiveTenantKey()}${readOnly})`
   );
 }
 

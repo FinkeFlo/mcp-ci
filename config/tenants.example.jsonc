@@ -1,0 +1,31 @@
+// Tenant configuration for mcp-ci (JSON with comments).
+// Copy to config/tenants.jsonc and fill in your values. That file is gitignored.
+// Set MCP_CI_CONFIG to load a different file instead.
+{
+  "tenants": {
+    // The key ("dev") is what set_tenant and defaultTenant refer to.
+    "dev": {
+      // Display name (optional, defaults to the key).
+      "name": "DEV",
+      // Only the boolean true switches a tenant on. Anything else (false, "true",
+      // a missing or misspelled key) leaves it off, and the entry is ignored.
+      "enabled": true,
+      "settings": {
+        // Only the boolean false makes this tenant writable. Anything else (true,
+        // "false", a missing or misspelled key, no "settings" at all) makes it
+        // read-only: every request except GET is blocked, so no create, update,
+        // delete or deploy reaches it, and write tools are hidden while it is active.
+        "readOnly": false
+      },
+      // Cloud Integration API URL (from the service key, "url").
+      "apiUrl": "https://your-tenant.it-cpiXXX.cfapps.eu10-003.hana.ondemand.com",
+      // OAuth token endpoint (from the service key, "tokenurl").
+      "oauthUrl": "https://your-tenant.authentication.eu10.hana.ondemand.com/oauth/token",
+      // OAuth2 client credentials (from the service key).
+      "clientId": "your-client-id",
+      "clientSecret": "your-client-secret"
+    }
+  },
+  // Tenant that is active at startup. Must be enabled.
+  "defaultTenant": "dev"
+}

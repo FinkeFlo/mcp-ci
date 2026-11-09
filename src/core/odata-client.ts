@@ -51,7 +51,28 @@ export class ODataClient {
     return csrfToken;
   }
 
-  async post(path: string, body?: Record<string, unknown>): Promise<any> {
+  /**
+   * Rejects any mutating request while the active tenant is read-only. Runs
+   * before token, CSRF and fetch so nothing reaches the tenant.
+   */
+  private assertWritable(method: string, path: string): void {
+    if (this.tenantManager.isActiveReadOnly()) {
+      throw new Error(
+        `Tenant '${this.tenantManager.getActiveTenantKey()}' is read-only: ${method} ${path} blocked`
+      );
+    }
+  }
+
+  /**
+   * `allowOnReadOnly` is for POST endpoints that cannot change tenant content
+   * (currently only design guideline execution).
+   */
+  async post(
+    path: string,
+    body?: Record<string, unknown>,
+    options?: { allowOnReadOnly?: boolean }
+  ): Promise<any> {
+    if (!options?.allowOnReadOnly) this.assertWritable("POST", path);
     const tenant = this.tenantManager.getActiveTenant();
     const token = await this.auth.getToken(tenant);
     const csrfToken = await this.getCsrfToken();
@@ -106,6 +127,7 @@ export class ODataClient {
   }
 
   async delete(path: string): Promise<void> {
+    this.assertWritable("DELETE", path);
     const tenant = this.tenantManager.getActiveTenant();
     const token = await this.auth.getToken(tenant);
     const csrfToken = await this.getCsrfToken();
@@ -146,6 +168,7 @@ export class ODataClient {
   }
 
   async put(path: string, body: Record<string, unknown>): Promise<void> {
+    this.assertWritable("PUT", path);
     const tenant = this.tenantManager.getActiveTenant();
     const token = await this.auth.getToken(tenant);
     const csrfToken = await this.getCsrfToken();
@@ -224,7 +247,7 @@ export class ODataClient {
           parts.push(`${key}=${encodeURIComponent(String(value))}`);
         }
       }
-      if (parts.length > 0) url += `?${parts.join("&")}`;
+      if (parts.length > 0) url += `${path.includes("?") ? "&" : "?"}${parts.join("&")}`;
     }
     return url;
   }

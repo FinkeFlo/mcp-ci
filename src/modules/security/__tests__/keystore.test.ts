@@ -115,6 +115,59 @@ describe("keystore tools", () => {
       expect(text).toContain("ValidNotAfter: n/a");
     });
 
+    it("filters by expiringWithinDays, includes expired, sorts by expiry", async () => {
+      const day = 86_400_000;
+      const now = Date.now();
+      const mk = (alias: string, offsetDays: number) => ({
+        Hexalias: alias,
+        Alias: alias,
+        ValidNotAfter: `/Date(${now + offsetDays * day})/`,
+      });
+      mockODataClient.getCollection.mockResolvedValue([
+        // Half days keep the floored day count stable however long the test takes.
+        mk("soon", 10.5),
+        mk("far", 400),
+        mk("expired", -5.5),
+      ]);
+      const result = await handlers.get("list_keystore_entries")!({
+        keystoreName: "system",
+        expiringWithinDays: 60,
+      });
+      const text = result.content[0].text;
+      expect(text).not.toContain("Alias: far");
+      expect(text.indexOf("Alias: expired")).toBeGreaterThanOrEqual(0);
+      expect(text.indexOf("Alias: expired")).toBeLessThan(
+        text.indexOf("Alias: soon")
+      );
+      expect(text).toContain("(expired)");
+      expect(text).toContain("DaysUntilExpiry: 10");
+      expect(text).toContain("DaysUntilExpiry: -6 (expired)");
+    });
+
+    it("adds ValidNotAfter to a custom select when filtering by expiry", async () => {
+      mockODataClient.getCollection.mockResolvedValue([]);
+      await handlers.get("list_keystore_entries")!({
+        keystoreName: "system",
+        select: "Alias",
+        expiringWithinDays: 30,
+      });
+      expect(mockODataClient.getCollection).toHaveBeenCalledWith(
+        "/api/v1/KeystoreEntries?keystoreName=system",
+        { $select: "Alias,ValidNotAfter" }
+      );
+    });
+
+    it("reports when nothing expires within the window", async () => {
+      mockODataClient.getCollection.mockResolvedValue([
+        { Hexalias: "a", Alias: "far", ValidNotAfter: `/Date(${Date.now() + 400 * 86_400_000})/` },
+      ]);
+      const result = await handlers.get("list_keystore_entries")!({
+        keystoreName: "system",
+        expiringWithinDays: 30,
+      });
+      expect(result.content[0].text).toContain("No keystore entries expire within 30 day(s)");
+    });
+
     it("returns empty message when no entries found", async () => {
       mockODataClient.getCollection.mockResolvedValue([]);
       const result = await handlers.get("list_keystore_entries")!({
@@ -123,7 +176,7 @@ describe("keystore tools", () => {
       expect(result.content[0].text).toBe("No keystore entries found.");
     });
 
-    it("passes keystoreName as query param and select", async () => {
+    it("passes keystoreName and select in one query string", async () => {
       mockODataClient.getCollection.mockResolvedValue([]);
       await handlers.get("list_keystore_entries")!({
         keystoreName: "backup_admin_system",

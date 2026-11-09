@@ -21,12 +21,19 @@ An [MCP](https://modelcontextprotocol.io) server for **SAP Cloud Integration** (
 
 ```sh
 npm install
-cp config/tenants.example.json config/tenants.json
-# edit config/tenants.json with your tenant URL and OAuth credentials
+cp config/tenants.example.jsonc config/tenants.jsonc
+# edit config/tenants.jsonc with your tenant URL and OAuth credentials
 npm start
 ```
 
-`config/tenants.json` is gitignored. You can configure several tenants and switch between them at runtime with the `set_tenant` tool.
+`config/tenants.jsonc` is gitignored and may contain comments. You can configure several tenants and switch between them at runtime with the `set_tenant` tool. Set `MCP_CI_CONFIG` to load a different file. An existing `config/tenants.json` is still read when no `tenants.jsonc` exists.
+
+### Tenant settings
+
+- `enabled`: a tenant is only loaded with `"enabled": true`. Any other value, or a missing or misspelled key, leaves it off and it does not appear in `get_tenant` or `set_tenant`. Configs from before this setting need `"enabled": true` added to each tenant. `defaultTenant` must be enabled.
+- `settings.readOnly`: a tenant is only writable with `"readOnly": false`. Any other value, a missing key or a missing `settings` object makes it read-only: the server sends nothing but GET requests to it, write tools (create, update, delete, deploy and similar) are hidden while it is active, and the HTTP client rejects any other request. The one exception is `execute_guidelines`, which only runs a check. Tenants you want to change through the server need `"settings": { "readOnly": false }`.
+
+The read-only guarantee covers tool calls through a correctly configured server. It does not protect against someone who can edit the config file, change `MCP_CI_CONFIG` or start their own server process.
 
 ### Using it from an MCP client
 

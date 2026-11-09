@@ -5,19 +5,26 @@ import { fileURLToPath } from "node:url";
 import { TenantManager } from "../core/tenant-manager.js";
 import { Auth } from "../core/auth.js";
 import { ODataClient } from "../core/odata-client.js";
+import { parseTenantConfig, resolveConfigPath } from "../core/config.js";
 import type { TenantConfig } from "../core/types.js";
 import type { MessageProcessingLog } from "../modules/monitoring/types.js";
 import { buildListMessagesParams } from "../modules/monitoring/queries.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const configPath = resolve(__dirname, "../../config/tenants.json");
-const hasConfig = existsSync(configPath);
+const configPath = (() => {
+  try {
+    return resolveConfigPath(process.env, resolve(__dirname, "../.."), existsSync).path;
+  } catch {
+    return undefined;
+  }
+})();
 
-describe.skipIf(!hasConfig)("Integration: SAP CPI Dev Tenant", () => {
+// Talks to the real default tenant when a config exists (GET only).
+describe.skipIf(!configPath)("Integration: SAP CPI Dev Tenant", () => {
   let odataClient: ODataClient;
 
   it("can authenticate and list messages", async () => {
-    const config = JSON.parse(readFileSync(configPath, "utf-8")) as TenantConfig;
+    const config: TenantConfig = parseTenantConfig(readFileSync(configPath!, "utf-8"), configPath);
     const tenantManager = new TenantManager(config);
     const auth = new Auth();
     odataClient = new ODataClient(auth, tenantManager);
