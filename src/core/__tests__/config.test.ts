@@ -90,6 +90,12 @@ describe("parseTenantConfig", () => {
     }
   });
 
+  it("rejects a default tenant that only exists on Object.prototype", () => {
+    for (const name of ["constructor", "toString", "__proto__"]) {
+      expect(() => parseTenantConfig(config(`"enabled": true, ${connection}`, name)), name).toThrow(/default tenant/);
+    }
+  });
+
   it("rejects a non-object settings value", () => {
     expect(() =>
       parseTenantConfig(config(`"enabled": true, "settings": true, ${connection}`))

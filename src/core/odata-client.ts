@@ -1,5 +1,6 @@
 import type { Auth } from "./auth.js";
 import type { TenantManager } from "./tenant-manager.js";
+import type { Tenant } from "./types.js";
 
 export interface ODataParams {
   $filter?: string;
@@ -18,17 +19,15 @@ export class ODataClient {
 
   constructor(private auth: Auth, private tenantManager: TenantManager) {}
 
-  private async getCsrfToken(): Promise<string> {
-    const tenant = this.tenantManager.getActiveTenant();
+  private async getCsrfToken(tenant: Tenant): Promise<string> {
     const cached = this.csrfTokens.get(tenant.clientId);
     if (cached && Date.now() - cached.fetchedAt < ODataClient.CSRF_TTL) {
       return cached.token;
     }
-    return this.fetchCsrfToken();
+    return this.fetchCsrfToken(tenant);
   }
 
-  private async fetchCsrfToken(): Promise<string> {
-    const tenant = this.tenantManager.getActiveTenant();
+  private async fetchCsrfToken(tenant: Tenant): Promise<string> {
     const token = await this.auth.getToken(tenant);
     const url = `${tenant.apiUrl}/api/v1/`;
     const response = await fetch(url, {
@@ -75,7 +74,7 @@ export class ODataClient {
     if (!options?.allowOnReadOnly) this.assertWritable("POST", path);
     const tenant = this.tenantManager.getActiveTenant();
     const token = await this.auth.getToken(tenant);
-    const csrfToken = await this.getCsrfToken();
+    const csrfToken = await this.getCsrfToken(tenant);
     const url = `${tenant.apiUrl}${path}`;
 
     const headers: Record<string, string> = {
@@ -97,7 +96,7 @@ export class ODataClient {
     if (response.status === 403) {
       // Invalidate cached token and retry once
       this.csrfTokens.delete(tenant.clientId);
-      const newCsrfToken = await this.fetchCsrfToken();
+      const newCsrfToken = await this.fetchCsrfToken(tenant);
       const retryHeaders: Record<string, string> = {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
@@ -130,7 +129,7 @@ export class ODataClient {
     this.assertWritable("DELETE", path);
     const tenant = this.tenantManager.getActiveTenant();
     const token = await this.auth.getToken(tenant);
-    const csrfToken = await this.getCsrfToken();
+    const csrfToken = await this.getCsrfToken(tenant);
     const url = `${tenant.apiUrl}${path}`;
 
     const response = await fetch(url, {
@@ -145,7 +144,7 @@ export class ODataClient {
     if (response.status === 403) {
       // Invalidate cached token and retry once
       this.csrfTokens.delete(tenant.clientId);
-      const newCsrfToken = await this.fetchCsrfToken();
+      const newCsrfToken = await this.fetchCsrfToken(tenant);
       const retryResponse = await fetch(url, {
         method: "DELETE",
         headers: {
@@ -171,7 +170,7 @@ export class ODataClient {
     this.assertWritable("PUT", path);
     const tenant = this.tenantManager.getActiveTenant();
     const token = await this.auth.getToken(tenant);
-    const csrfToken = await this.getCsrfToken();
+    const csrfToken = await this.getCsrfToken(tenant);
     const url = `${tenant.apiUrl}${path}`;
 
     const response = await fetch(url, {
@@ -188,7 +187,7 @@ export class ODataClient {
 
     if (response.status === 403) {
       this.csrfTokens.delete(tenant.clientId);
-      const newCsrfToken = await this.fetchCsrfToken();
+      const newCsrfToken = await this.fetchCsrfToken(tenant);
       const retryResponse = await fetch(url, {
         method: "PUT",
         headers: {

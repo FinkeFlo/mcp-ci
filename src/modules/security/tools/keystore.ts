@@ -15,16 +15,20 @@ import {
   buildHistoryKeystoreEntryPath,
 } from "../queries.js";
 
+// OData v2 dates: /Date(ms)/, optionally with an offset in minutes (+0060) that
+// does not change the instant.
+const ODATA_DATE = /\/Date\((-?\d+)(?:[+-]\d{4})?\)\//;
+
 function parseODataDate(value: string | null): string {
   if (!value) return "n/a";
-  const match = value.match(/\/Date\((\d+)\)\//);
+  const match = value.match(ODATA_DATE);
   if (match) return new Date(parseInt(match[1])).toISOString();
   return value;
 }
 
 function notAfterMs(value: string | null): number | null {
   if (!value) return null;
-  const match = value.match(/\/Date\((-?\d+)\)\//);
+  const match = value.match(ODATA_DATE);
   const ms = match ? parseInt(match[1]) : Date.parse(value);
   return Number.isNaN(ms) ? null : ms;
 }
@@ -191,17 +195,20 @@ export function registerKeystoreTools(
         );
       if (expiringWithinDays !== undefined) {
         const limit = Date.now() + expiringWithinDays * 86_400_000;
-        entries = entries
-          .map((e) => ({ e, end: notAfterMs(e.ValidNotAfter) }))
-          .filter(
-            (x): x is { e: KeystoreEntry; end: number } =>
-              x.end !== null && x.end <= limit
-          )
+        const dated = entries.map((e) => ({ e, end: notAfterMs(e.ValidNotAfter) }));
+        const expiring = dated
+          .filter((x): x is { e: KeystoreEntry; end: number } => x.end !== null && x.end <= limit)
           .sort((a, b) => a.end - b.end)
           .map((x) => x.e);
-        if (entries.length === 0) {
+        // An entry whose date cannot be read might be expired; never drop it silently.
+        const unknown = dated.filter((x) => x.end === null).map((x) => x.e);
+        if (expiring.length === 0 && unknown.length === 0) {
           return `No keystore entries expire within ${expiringWithinDays} day(s).`;
         }
+        return [
+          ...expiring.map(formatKeystoreEntrySummary),
+          ...unknown.map((e) => `${formatKeystoreEntrySummary(e)}\nDaysUntilExpiry: unknown expiry (ValidNotAfter not readable)`),
+        ].join("\n\n");
       }
       if (entries.length === 0) {
         return "No keystore entries found.";

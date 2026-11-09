@@ -81,7 +81,7 @@ export function parseTenantConfig(text: string, source = "tenant config"): Tenan
     );
   }
   const defaultTenant = raw.defaultTenant;
-  if (typeof defaultTenant !== "string" || !tenants[defaultTenant]) {
+  if (typeof defaultTenant !== "string" || !Object.hasOwn(tenants, defaultTenant)) {
     throw new Error(
       `${source}: default tenant '${String(defaultTenant)}' is missing or not enabled ("enabled": true)`
     );

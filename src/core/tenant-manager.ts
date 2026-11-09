@@ -9,7 +9,7 @@ export class TenantManager {
   private pinned = new AsyncLocalStorage<string>();
 
   constructor(config: TenantConfig) {
-    if (!config.tenants[config.defaultTenant]) {
+    if (!Object.hasOwn(config.tenants, config.defaultTenant)) {
       throw new Error(
         `Default tenant '${config.defaultTenant}' not found in config`
       );
@@ -35,7 +35,7 @@ export class TenantManager {
   }
 
   setActiveTenant(key: string): void {
-    if (!this.config.tenants[key]) {
+    if (!Object.hasOwn(this.config.tenants, key)) {
       throw new Error(
         `Unknown tenant: ${key}. Available: ${this.listTenants().join(", ")}`
       );
