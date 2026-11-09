@@ -28,7 +28,11 @@ one, including for a call that is still running while the other session switches
 
 - Sessions live in memory. A deployment runs one instance or routes a session to the same instance
   (sticky sessions); sharing sessions across instances is not solved.
-- A session reads its config once, at creation. A changed config applies to new sessions.
+- A session reads its config once, at creation. A changed config, or a changed role that leads to
+  another config, applies to new sessions only; a person who stays active keeps the old tenants until
+  the session ends (DELETE, idle timeout, restart). An identity that becomes invalid is refused at
+  once, because the authenticator runs on every request (ADR 0007). A maximum session lifetime is not
+  built and can be added if revocation latency matters.
 - The default token provider uses a technical OAuth client, so its token is shared by every session whose
   tenant names the same token endpoint and client id. Tokens that identify a person need a custom
   `TokenProvider`, which receives the principal; the core does not partition tokens by person.
