@@ -60,6 +60,44 @@ async function countMessages(
   );
 }
 
+
+const ERROR_TEXT_LIMIT = 50;
+const ERROR_FETCH_CONCURRENCY = 10;
+
+/** OData /Date(ms)/ as ISO 8601; other values unchanged. */
+function isoTime(value: string | null | undefined): string {
+  const match = value?.match(/\/Date\((-?\d+)/);
+  return match ? new Date(Number(match[1])).toISOString() : (value ?? "n/a");
+}
+
+/**
+ * First line of an error text with IDs and long numbers replaced, so errors
+ * that differ only in a message or entry ID group. Short numbers such as HTTP
+ * status codes stay, since they tell causes apart.
+ */
+function normalizeErrorLine(text: string | null): string {
+  const line = text?.split("\n").map((l) => l.trim()).find(Boolean);
+  if (!line) return "(no error text)";
+  return line
+    .replace(/\b[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\b/gi, "<id>")
+    .replace(/\b(?=[A-Za-z_-]*\d)(?=\w*[A-Za-z])[\w-]{16,}\b/g, "<id>")
+    .replace(/\d{4,}/g, "<n>")
+    .slice(0, 300);
+}
+
+async function mapLimited<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 export const monitoringModule: Module = {
   name: "monitoring",
   register(server: McpServer, context: ModuleContext) {
@@ -511,7 +549,7 @@ export const monitoringModule: Module = {
       "get_errors",
       {
         description:
-          "Get recent failed messages grouped by integration flow, with error counts and one sample error per flow. Capped at the 200 most recent failures; use aggregate_messages for exact totals.",
+          "Get recent failed messages grouped by integration flow (or by error text with groupBy errorText), with counts and sample errors. Capped at the 200 most recent failures; use aggregate_messages for exact totals.",
         inputSchema: z.object({
           from: z
             .string()
@@ -525,9 +563,20 @@ export const monitoringModule: Module = {
             .describe(
               "Optionally narrow by custom status (e.g. ERROR, ESCALATED) in addition to Status='FAILED'."
             ),
+          groupBy: z
+            .enum(["flow", "errorText"])
+            .optional()
+            .describe(`flow (default) or errorText: distinct causes across flows, from the ${ERROR_TEXT_LIMIT} most recent failures`),
+          samplesPerFlow: z
+            .number()
+            .int()
+            .min(1)
+            .max(5)
+            .optional()
+            .describe("Error samples per flow (default 1, max 5)"),
         }),
       },
-      textTool(async (filters) => {
+      textTool(async ({ groupBy, samplesPerFlow, ...filters }) => {
         const params = buildGetErrorsParams(filters);
         const messages =
           await context.odataClient.getCollection<MessageProcessingLog>(
@@ -539,34 +588,15 @@ export const monitoringModule: Module = {
           return "No failed messages found in the given time range.";
         }
 
-        // Group by IntegrationFlowName
-        const groups = new Map<
-          string,
-          { count: number; latest: MessageProcessingLog }
-        >();
-        for (const msg of messages) {
-          const key = msg.IntegrationFlowName ?? "(unknown)";
-          const existing = groups.get(key);
-          if (existing) {
-            existing.count++;
-          } else {
-            groups.set(key, { count: 1, latest: msg });
+        const errorText = async (msg: MessageProcessingLog) => {
+          try {
+            return await context.odataClient.getValue(
+              `${API_PATH}('${msg.MessageGuid}')/ErrorInformation/$value`
+            );
+          } catch {
+            return null;
           }
-        }
-
-        // Fetch sample error per flow in parallel
-        const flowEntries = Array.from(groups.entries());
-        const errorTexts = await Promise.all(
-          flowEntries.map(async ([, { latest }]) => {
-            try {
-              return await context.odataClient.getValue(
-                `${API_PATH}('${latest.MessageGuid}')/ErrorInformation/$value`
-              );
-            } catch {
-              return null;
-            }
-          })
-        );
+        };
 
         const lines: string[] = [
           `Total failed messages: ${messages.length}`,
@@ -576,19 +606,57 @@ export const monitoringModule: Module = {
             "Note: result is capped at 200 messages (most recent first); the real total may be higher. Use aggregate_messages with status FAILED for the exact count."
           );
         }
-        lines.push(`Affected flows: ${groups.size}`, "");
 
-        flowEntries.forEach(([flowName, { count, latest }], i) => {
+        if (groupBy === "errorText") {
+          const analyzed = messages.slice(0, ERROR_TEXT_LIMIT);
+          const texts = await mapLimited(analyzed, ERROR_FETCH_CONCURRENCY, errorText);
+          const causes = new Map<string, { count: number; flows: Set<string>; example: string }>();
+          analyzed.forEach((msg, i) => {
+            const cause = normalizeErrorLine(texts[i]);
+            const entry = causes.get(cause) ?? { count: 0, flows: new Set<string>(), example: msg.MessageGuid };
+            entry.count++;
+            entry.flows.add(msg.IntegrationFlowName ?? "(unknown)");
+            causes.set(cause, entry);
+          });
+          if (messages.length > analyzed.length) {
+            lines.push(`Error texts read for the ${analyzed.length} most recent of ${messages.length} failures.`);
+          }
+          lines.push(`Distinct causes: ${causes.size}`, "");
+          for (const [cause, { count, flows, example }] of [...causes].sort((a, b) => b[1].count - a[1].count)) {
+            lines.push(`Cause: ${cause}`, `  Failures: ${count}`, `  Flows: ${[...flows].join(", ")}`, `  Example: ${example}`, "");
+          }
+          return lines.join("\n");
+        }
+
+        // Group by IntegrationFlowName, most recent first (the query orders by LogEnd desc)
+        const groups = new Map<string, MessageProcessingLog[]>();
+        for (const msg of messages) {
+          const key = msg.IntegrationFlowName ?? "(unknown)";
+          groups.set(key, [...(groups.get(key) ?? []), msg]);
+        }
+        const flowEntries = Array.from(groups.entries());
+        const samples = samplesPerFlow ?? 1;
+        const sampled = flowEntries.flatMap(([, flowMessages]) => flowMessages.slice(0, samples));
+        const texts = new Map(sampled.map((msg, i) => [msg, i]));
+        const fetched = await mapLimited(sampled, ERROR_FETCH_CONCURRENCY, errorText);
+        const sampleTexts = flowEntries.map(([, flowMessages]) =>
+          flowMessages.slice(0, samples).map((msg) => fetched[texts.get(msg)!])
+        );
+
+        lines.push(`Affected flows: ${groups.size}`, "");
+        flowEntries.forEach(([flowName, flowMessages], i) => {
+          const [latest] = flowMessages;
           lines.push(`Flow: ${flowName}`);
-          lines.push(`  Failures: ${count}`);
-          lines.push(`  Latest: ${latest.LogEnd ?? "n/a"}`);
+          lines.push(`  Failures: ${flowMessages.length}`);
+          lines.push(`  Latest: ${isoTime(latest.LogEnd)}`);
           lines.push(`  MessageGuid: ${latest.MessageGuid}`);
           if (latest.AlternateWebLink) {
             lines.push(`  Link: ${latest.AlternateWebLink}`);
           }
-          if (errorTexts[i]) {
-            lines.push(`  Sample error: ${errorTexts[i]}`);
-          }
+          sampleTexts[i].forEach((text, j) => {
+            if (!text) return;
+            lines.push(samples === 1 ? `  Sample error: ${text}` : `  Sample error (${flowMessages[j].MessageGuid}): ${text}`);
+          });
           lines.push("");
         });
 
