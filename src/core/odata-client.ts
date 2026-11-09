@@ -1,4 +1,4 @@
-import type { Auth } from "./auth.js";
+import { LOCAL_PRINCIPAL, type TokenProvider } from "./extension-points.js";
 import type { TenantManager } from "./tenant-manager.js";
 import type { Tenant } from "./types.js";
 
@@ -17,7 +17,7 @@ export class ODataClient {
   private static CSRF_TTL = 30 * 60_000;
   private csrfTokens = new Map<string, { token: string; fetchedAt: number }>();
 
-  constructor(private auth: Auth, private tenantManager: TenantManager) {}
+  constructor(private auth: TokenProvider, private tenantManager: TenantManager) {}
 
   private async getCsrfToken(tenant: Tenant): Promise<string> {
     const cached = this.csrfTokens.get(tenant.clientId);
@@ -28,7 +28,7 @@ export class ODataClient {
   }
 
   private async fetchCsrfToken(tenant: Tenant): Promise<string> {
-    const token = await this.auth.getToken(tenant);
+    const token = await this.auth.getToken(tenant, LOCAL_PRINCIPAL);
     const url = `${tenant.apiUrl}/api/v1/`;
     const response = await fetch(url, {
       headers: {
@@ -73,7 +73,7 @@ export class ODataClient {
   ): Promise<any> {
     if (!options?.allowOnReadOnly) this.assertWritable("POST", path);
     const tenant = this.tenantManager.getActiveTenant();
-    const token = await this.auth.getToken(tenant);
+    const token = await this.auth.getToken(tenant, LOCAL_PRINCIPAL);
     const csrfToken = await this.getCsrfToken(tenant);
     const url = `${tenant.apiUrl}${path}`;
 
@@ -128,7 +128,7 @@ export class ODataClient {
   async delete(path: string): Promise<void> {
     this.assertWritable("DELETE", path);
     const tenant = this.tenantManager.getActiveTenant();
-    const token = await this.auth.getToken(tenant);
+    const token = await this.auth.getToken(tenant, LOCAL_PRINCIPAL);
     const csrfToken = await this.getCsrfToken(tenant);
     const url = `${tenant.apiUrl}${path}`;
 
@@ -169,7 +169,7 @@ export class ODataClient {
   async put(path: string, body: Record<string, unknown>): Promise<void> {
     this.assertWritable("PUT", path);
     const tenant = this.tenantManager.getActiveTenant();
-    const token = await this.auth.getToken(tenant);
+    const token = await this.auth.getToken(tenant, LOCAL_PRINCIPAL);
     const csrfToken = await this.getCsrfToken(tenant);
     const url = `${tenant.apiUrl}${path}`;
 
@@ -224,7 +224,7 @@ export class ODataClient {
 
   async getValue(path: string): Promise<string> {
     const tenant = this.tenantManager.getActiveTenant();
-    const token = await this.auth.getToken(tenant);
+    const token = await this.auth.getToken(tenant, LOCAL_PRINCIPAL);
     const url = `${tenant.apiUrl}${path}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "*/*" },
@@ -253,7 +253,7 @@ export class ODataClient {
 
   private async request(path: string, params?: ODataParams): Promise<any> {
     const tenant = this.tenantManager.getActiveTenant();
-    const token = await this.auth.getToken(tenant);
+    const token = await this.auth.getToken(tenant, LOCAL_PRINCIPAL);
     const url = this.buildUrl(tenant.apiUrl, path, params);
     const response = await fetch(url, {
       headers: { Accept: "application/json", Authorization: `Bearer ${token}` },

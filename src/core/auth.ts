@@ -1,4 +1,5 @@
 import type { Tenant } from "./types.js";
+import type { TokenProvider } from "./extension-points.js";
 
 interface CachedToken {
   accessToken: string;
@@ -7,7 +8,8 @@ interface CachedToken {
 
 const TOKEN_BUFFER_MS = 60_000; // Refresh 60s before expiry
 
-export class Auth {
+/** OAuth client credentials with a token cache; the default `TokenProvider`. */
+export class Auth implements TokenProvider {
   private cache = new Map<string, CachedToken>();
 
   async getToken(tenant: Tenant): Promise<string> {

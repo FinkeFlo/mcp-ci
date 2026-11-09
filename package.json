@@ -3,7 +3,15 @@
   "version": "0.1.1",
   "description": "MCP server for SAP Cloud Integration",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/lib.js",
+  "types": "dist/lib.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/lib.d.ts",
+      "default": "./dist/lib.js"
+    },
+    "./package.json": "./package.json"
+  },
   "bin": {
     "mcp-ci": "dist/index.js"
   },

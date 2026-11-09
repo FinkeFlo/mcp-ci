@@ -1,0 +1,14 @@
+// Fake tenant for tests. Nothing here is a real credential.
+{
+  "tenants": {
+    "fixture": {
+      "name": "FIXTURE",
+      "enabled": true,
+      "apiUrl": "https://fixture.example.com",
+      "oauthUrl": "https://fixture.example.com/oauth/token",
+      "clientId": "fixture-client-id",
+      "clientSecret": "fixture-client-secret"
+    }
+  },
+  "defaultTenant": "fixture"
+}
