@@ -195,6 +195,11 @@ describe("resolveConfigPath", () => {
     expect(resolveConfigPath({ XDG_CONFIG_HOME: "/xdg" }, base, (p) => p === xdg, "/home/me")).toBe(xdg);
   });
 
+  it("ignores a relative XDG_CONFIG_HOME, as the XDG spec says", () => {
+    const user = resolve("/home/me/.config/mcp-ci/tenants.jsonc");
+    expect(resolveConfigPath({ XDG_CONFIG_HOME: "relative/dir" }, base, (p) => p === user, "/home/me")).toBe(user);
+  });
+
   it("prefers the repository config over the user config", () => {
     expect(resolveConfigPath({}, base, () => true, "/home/me")).toBe(jsonc);
   });

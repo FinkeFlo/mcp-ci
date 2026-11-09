@@ -41,7 +41,9 @@ chmod 600 ~/.config/mcp-ci/tenants.jsonc
 }
 ```
 
-npx clones and builds the package on first start, which takes a few seconds; later starts use the npm cache. Pin a version with `github:FinkeFlo/mcp-ci#<tag or commit>`. To use another config file, add `"env": { "MCP_CI_CONFIG": "/path/to/tenants.jsonc" }`.
+npx clones and builds the package on first start, which takes a few seconds; later starts use the npm cache. To use another config file, add `"env": { "MCP_CI_CONFIG": "/path/to/tenants.jsonc" }`.
+
+> **Pin a version for real tenants.** `github:FinkeFlo/mcp-ci` follows `main`, so a new commit can run with your tenant credentials as soon as npx refreshes its cache. Use `github:FinkeFlo/mcp-ci#<tag or commit>` and update it on purpose.
 
 ### From a checkout
 
@@ -54,7 +56,7 @@ npm start
 
 `config/tenants.jsonc` is gitignored and may contain comments. You can configure several tenants and switch between them at runtime with the `set_tenant` tool.
 
-The config is looked up in this order: `MCP_CI_CONFIG`, then `config/tenants.jsonc` in the checkout, then `$XDG_CONFIG_HOME/mcp-ci/tenants.jsonc` (default `~/.config/mcp-ci/tenants.jsonc`).
+The config is looked up in this order: `MCP_CI_CONFIG`, then `config/tenants.jsonc` in the checkout, then `$XDG_CONFIG_HOME/mcp-ci/tenants.jsonc` (default `~/.config/mcp-ci/tenants.jsonc`). A `config/tenants.jsonc` in a checkout (also one used through `npm link`) therefore wins over the one in your user config directory; set `MCP_CI_CONFIG` to force a specific file.
 
 ### Tenant settings
 

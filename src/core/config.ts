@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { resolve, dirname, join } from "node:path";
+import { resolve, dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse, printParseErrorCode, type ParseError } from "jsonc-parser";
 import type { Tenant, TenantConfig } from "./types.js";
@@ -120,12 +120,13 @@ export function resolveConfigPath(
   if (env.MCP_CI_CONFIG) return resolve(env.MCP_CI_CONFIG);
   const candidates = [
     resolve(baseDir, "config/tenants.jsonc"),
-    resolve(env.XDG_CONFIG_HOME || join(home, ".config"), "mcp-ci/tenants.jsonc"),
+    // The XDG spec says to ignore a relative XDG_CONFIG_HOME.
+    resolve(env.XDG_CONFIG_HOME && isAbsolute(env.XDG_CONFIG_HOME) ? env.XDG_CONFIG_HOME : join(home, ".config"), "mcp-ci/tenants.jsonc"),
   ];
   const found = candidates.find(exists);
   if (found) return found;
   throw new Error(
-    `No tenant config found. Checked: ${candidates.join(", ")}. Copy config/tenants.example.jsonc to one of them or set MCP_CI_CONFIG.`
+    `No tenant config found. Checked: ${candidates.join(", ")}. Create one from the example (see https://github.com/FinkeFlo/mcp-ci#setup) or set MCP_CI_CONFIG.`
   );
 }
 
