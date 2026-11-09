@@ -59,7 +59,10 @@ The server communicates over stdio.
 npm test            # vitest
 npm run typecheck   # type check (app + scripts)
 npm run coverage    # API coverage report (requires the SAP specs, see docs/api/README.md)
+npm run schema-budget  # size of the tool list a client receives, checked in CI
 ```
+
+Every tool's name, description and input schema is sent to the model on each turn. `npm run schema-budget` measures the `tools/list` result for a read-only and a writable tenant and fails when it exceeds `scripts/schema-budget/budget.json` (currently 159 tools / ~71k chars read-only, 230 tools / ~118k chars writable). Raise the budget only on purpose, in the PR that needs it.
 
 ## License
 
