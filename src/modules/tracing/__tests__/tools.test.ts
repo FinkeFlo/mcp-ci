@@ -53,6 +53,51 @@ describe("tracing tools", () => {
     });
   });
 
+  describe("get_message_runs without server-side ordering", () => {
+    it("sends no $orderby (the API answers 501) and sorts newest first itself", async () => {
+      mockODataClient.getCollection.mockResolvedValue([
+        { Id: "old", RunStart: "/Date(1000)/" },
+        { Id: "new", RunStart: "/Date(3000)/" },
+        { Id: "mid", RunStart: "/Date(2000)/" },
+      ]);
+      const result = await handlers.get("get_message_runs")!({ messageGuid: "g1" });
+      const [, params] = mockODataClient.getCollection.mock.calls[0];
+      expect(params?.$orderby).toBeUndefined();
+      const text = result.content[0].text;
+      expect(text.indexOf("new")).toBeLessThan(text.indexOf("mid"));
+      expect(text.indexOf("mid")).toBeLessThan(text.indexOf("old"));
+    });
+  });
+
+  describe("get_message_runs date formats", () => {
+    it("orders offset, ISO and missing start times, missing last", async () => {
+      mockODataClient.getCollection.mockResolvedValue([
+        { Id: "none", RunStart: null },
+        { Id: "iso", RunStart: "1970-01-01T00:00:02.500Z" },
+        { Id: "offset", RunStart: "/Date(3000+0060)/" },
+      ]);
+      const text = (await handlers.get("get_message_runs")!({ messageGuid: "g1" })).content[0].text;
+      expect(text.indexOf("offset")).toBeLessThan(text.indexOf("iso"));
+      expect(text.indexOf("iso")).toBeLessThan(text.indexOf("none"));
+    });
+  });
+
+  describe("get_run_steps without server-side ordering", () => {
+    it("sends no $orderby (the API answers 501) and sorts by ChildCount itself", async () => {
+      mockODataClient.getCollection.mockResolvedValue([
+        { RunId: "r1", ChildCount: 3, Activity: "Third", Status: "COMPLETED" },
+        { RunId: "r1", ChildCount: 1, Activity: "First", Status: "COMPLETED" },
+        { RunId: "r1", ChildCount: 2, Activity: "Second", Status: "COMPLETED" },
+      ]);
+      const result = await handlers.get("get_run_steps")!({ runId: "r1" });
+      const [, params] = mockODataClient.getCollection.mock.calls[0];
+      expect(params?.$orderby).toBeUndefined();
+      const text = result.content[0].text;
+      expect(text.indexOf("First")).toBeLessThan(text.indexOf("Second"));
+      expect(text.indexOf("Second")).toBeLessThan(text.indexOf("Third"));
+    });
+  });
+
   describe("get_run_steps", () => {
     it("returns no-steps text when empty", async () => {
       mockODataClient.getCollection.mockResolvedValue([]);

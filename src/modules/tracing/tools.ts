@@ -19,6 +19,14 @@ import {
 
 const MAX_TRACE_PAYLOAD = 100 * 1024;
 
+
+/** Milliseconds of an OData /Date(ms)/ or ISO value; 0 when unreadable. */
+function odataTime(value: string | null | undefined): number {
+  const match = value?.match(/\/Date\((-?\d+)/);
+  const ms = match ? Number(match[1]) : Date.parse(value ?? "");
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
 export const tracingModule: Module = {
   name: "tracing",
   register(server: McpServer, context: ModuleContext) {
@@ -36,11 +44,12 @@ export const tracingModule: Module = {
         }),
       },
       textTool(async ({ messageGuid }) => {
-        const runs =
+        // The Runs navigation answers $orderby with 501, so sort here.
+        const runs = (
           await context.odataClient.getCollection<MessageProcessingLogRun>(
-            buildRunsPath(messageGuid),
-            { $orderby: "RunStart desc" }
-          );
+            buildRunsPath(messageGuid)
+          )
+        ).sort((a, b) => odataTime(b.RunStart) - odataTime(a.RunStart));
 
         if (runs.length === 0) {
           return "No runs found for this message.";
@@ -71,11 +80,12 @@ export const tracingModule: Module = {
         }),
       },
       textTool(async ({ runId }) => {
-        const steps =
+        // RunSteps answers $orderby with 501 as well.
+        const steps = (
           await context.odataClient.getCollection<MessageProcessingLogRunStep>(
-            buildRunStepsPath(runId),
-            { $orderby: "ChildCount asc" }
-          );
+            buildRunStepsPath(runId)
+          )
+        ).sort((a, b) => (a.ChildCount ?? 0) - (b.ChildCount ?? 0));
 
         if (steps.length === 0) {
           return "No steps found for this run.";
