@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "tsx scripts/coverage/cli.ts",
+    "schema-budget": "tsx scripts/schema-budget/cli.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json"
   },
   "mcpServer": {
