@@ -31,8 +31,11 @@ describe("classifyTool", () => {
     expect(classifyTool(name)).toBe(kind);
   });
 
-  it("unknown prefixes return undefined", () => {
+  it("names missing from the table return undefined, whatever their prefix", () => {
     expect(classifyTool("frobnicate_x")).toBeUndefined();
     expect(classifyTool("getpackage")).toBeUndefined();
+    expect(classifyTool("get_not_a_registered_tool")).toBeUndefined();
+    expect(classifyTool("constructor")).toBeUndefined();
+    expect(classifyTool("__proto__")).toBeUndefined();
   });
 });

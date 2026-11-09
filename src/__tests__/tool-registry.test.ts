@@ -6,10 +6,26 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { allModules } from "../modules/all.js";
 import { TenantManager } from "../core/tenant-manager.js";
 import { classifyTool } from "../core/tool-access.js";
+import { TOOL_CLASSES } from "../core/tool-classes.js";
 import type { ModuleContext } from "../core/types.js";
 
 const srcDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const MUTATING_CALL = /\bodataClient\.(post|put|delete)\(/;
+
+// Naming convention, only used to suggest a class and to catch a table entry
+// that contradicts the tool's name. Runtime access reads TOOL_CLASSES only.
+const READ_PREFIXES = ["get_", "list_", "count_", "download_", "aggregate_", "export_"];
+const WRITE_PREFIXES = [
+  "create_", "update_", "delete_", "deploy_", "undeploy_", "save_", "upsert_", "import_",
+  "activate_", "deactivate_", "restore_", "rename_", "generate_", "copy_", "validate_",
+];
+// Classes that differ from what the name suggests, with the reason in TOOL_CLASSES.
+const NAME_EXCEPTIONS = new Set(["set_tenant", "execute_guidelines"]);
+
+function classByPrefix(name: string): "read" | "write" {
+  if (WRITE_PREFIXES.some((prefix) => name.startsWith(prefix))) return "write";
+  return READ_PREFIXES.some((prefix) => name.startsWith(prefix)) ? "read" : "write";
+}
 
 function registeredToolNames(): string[] {
   const names: string[] = [];
@@ -63,10 +79,23 @@ function toolBlocks(): Array<{ label: string; names: string[]; body: string; fil
 }
 
 describe("tool registry", () => {
-  it("every registered tool name has a classification", () => {
+  it("every registered tool has an entry in TOOL_CLASSES", () => {
     const names = registeredToolNames();
     expect(names.length).toBeGreaterThan(200);
-    expect(names.filter((name) => classifyTool(name) === undefined)).toEqual([]);
+    const missing = names.filter((name) => !Object.hasOwn(TOOL_CLASSES, name)).map((name) => `${name}: "${classByPrefix(name)}"`);
+    expect(missing, "add these to src/core/tool-classes.ts (suggested class from the name)").toEqual([]);
+  });
+
+  it("every TOOL_CLASSES entry is a registered tool", () => {
+    const names = new Set(registeredToolNames());
+    expect(Object.keys(TOOL_CLASSES).filter((name) => !names.has(name))).toEqual([]);
+  });
+
+  it("no TOOL_CLASSES entry contradicts its name, except the listed exceptions", () => {
+    const contradicting = Object.entries(TOOL_CLASSES)
+      .filter(([name, kind]) => !NAME_EXCEPTIONS.has(name) && kind !== classByPrefix(name))
+      .map(([name, kind]) => `${name}: ${kind}`);
+    expect(contradicting).toEqual([]);
   });
 
   it("source scan: every tool that posts, puts or deletes is classified write, except execute_guidelines", () => {
