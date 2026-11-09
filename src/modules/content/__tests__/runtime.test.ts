@@ -219,6 +219,46 @@ describe("runtime artifact tools", () => {
       expect(result.content[0].text).toContain("Connection refused");
     });
 
+    const envelope = (parameter: unknown[]) =>
+      JSON.stringify({
+        message: { subsystemName: "Runtime", subsytemPartName: "Deploy Service", messageId: "DEPLOY_FAILED", messageText: "" },
+        parameter,
+      });
+
+    it("flattens nested error JSON into a summary with the root cause", async () => {
+      mockODataClient.getValue.mockResolvedValue(
+        envelope([
+          JSON.stringify({
+            message: "Bundle start failed",
+            parameters: ["TestFlow_A"],
+            childMessageInstances: [{ message: "Endpoint conflict", parameters: ["Endpoint /orders is already used by TestFlow_B"] }],
+          }),
+        ])
+      );
+      const text = (await handlers.get("get_runtime_artifact_error")!({ id: "flow1" })).content[0].text;
+      expect(text).toContain("Error: DEPLOY_FAILED (Runtime / Deploy Service)");
+      expect(text).toContain("- Bundle start failed: TestFlow_A");
+      expect(text).toContain("  - Endpoint conflict: Endpoint /orders is already used by TestFlow_B");
+      expect(text).toContain("Root cause: Endpoint conflict: Endpoint /orders is already used by TestFlow_B");
+      expect(text).not.toContain('\\"');
+    });
+
+    it("handles a single level and plain string parameters", async () => {
+      mockODataClient.getValue.mockResolvedValue(
+        envelope([JSON.stringify({ message: "Script error", parameters: ["line 12: missing property"] }), "plain hint"])
+      );
+      const text = (await handlers.get("get_runtime_artifact_error")!({ id: "flow1" })).content[0].text;
+      expect(text).toContain("- Script error: line 12: missing property");
+      expect(text).toContain("- plain hint");
+      expect(text).toContain("Root cause: Script error: line 12: missing property");
+    });
+
+    it("returns JSON it does not recognize unchanged", async () => {
+      mockODataClient.getValue.mockResolvedValue('{"unexpected":true}');
+      const text = (await handlers.get("get_runtime_artifact_error")!({ id: "flow1" })).content[0].text;
+      expect(text).toBe('{"unexpected":true}');
+    });
+
     it("returns 'No error information' when empty string", async () => {
       mockODataClient.getValue.mockResolvedValue("");
       const result = await handlers.get("get_runtime_artifact_error")!({

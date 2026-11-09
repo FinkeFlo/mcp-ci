@@ -29,6 +29,52 @@ function formatArtifact(a: IntegrationRuntimeArtifact): string {
   return lines.join("\n");
 }
 
+interface ErrorDetail {
+  message?: string;
+  parameters?: unknown[];
+  childMessageInstances?: ErrorDetail[];
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Turns the deployment error envelope (`message` plus `parameter[]` holding
+ * JSON inside strings, nested through `childMessageInstances`) into readable
+ * lines with the deepest message as root cause. Returns undefined for any
+ * other shape, so the caller can fall back to the raw text.
+ */
+function flattenArtifactError(text: string): string | undefined {
+  const envelope = parseJson(text) as { message?: Record<string, unknown>; parameter?: unknown[] } | undefined;
+  if (!envelope?.message || !Array.isArray(envelope.parameter)) return undefined;
+  const { messageId, subsystemName, subsytemPartName, messageText } = envelope.message;
+  const lines = [`Error: ${messageId ?? "unknown"} (${[subsystemName, subsytemPartName].filter(Boolean).join(" / ")})`];
+  if (messageText) lines.push(String(messageText));
+  let rootCause: string | undefined;
+  const describe = (detail: ErrorDetail) =>
+    [detail.message, (detail.parameters ?? []).map(String).join("; ")].filter(Boolean).join(": ");
+  const walk = (detail: ErrorDetail, depth: number) => {
+    const line = describe(detail);
+    if (line) {
+      lines.push(`${"  ".repeat(depth)}- ${line}`);
+      rootCause = line;
+    }
+    for (const child of detail.childMessageInstances ?? []) walk(child, depth + 1);
+  };
+  for (const entry of envelope.parameter) {
+    const detail = typeof entry === "string" ? parseJson(entry) : entry;
+    if (detail && typeof detail === "object") walk(detail as ErrorDetail, 0);
+    else lines.push(`- ${String(entry)}`);
+  }
+  if (rootCause) lines.push("", `Root cause: ${rootCause}`);
+  return lines.join("\n");
+}
+
 export function registerRuntimeTools(
   server: McpServer,
   context: ModuleContext
@@ -141,7 +187,7 @@ export function registerRuntimeTools(
       if (!errorText) {
         return "No error information available.";
       }
-      return errorText;
+      return flattenArtifactError(errorText) ?? errorText;
     })
   );
 
