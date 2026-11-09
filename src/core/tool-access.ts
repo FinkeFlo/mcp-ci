@@ -53,10 +53,8 @@ export class ToolAccess {
   call<T>(name: string, handler: () => T, refuse: (tenantKey: string) => T): T {
     // set_tenant must change the real active tenant, so it is the one tool that
     // is not pinned; it never calls the tenant API.
-    if (name === "set_tenant") return handler();
-    return this.tenantManager.runPinned(() =>
-      this.isAllowed(name) ? handler() : refuse(this.tenantManager.getActiveTenantKey())
-    );
+    const run = () => (this.isAllowed(name) ? handler() : refuse(this.tenantManager.getActiveTenantKey()));
+    return name === "set_tenant" ? run() : this.tenantManager.runPinned(run);
   }
 
   private toggle(name: string, handle: ToggleableTool): void {

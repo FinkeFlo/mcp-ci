@@ -214,6 +214,22 @@ describe("ToolAccess with a guarded server", () => {
     expect(create.enable).toHaveBeenCalled();
   });
 
+  it("set_tenant listed in denyTools is refused and leaves the tenant unchanged", async () => {
+    const tenantManager = new TenantManager({
+      tenants: { ...config.tenants, pinned: { name: "PINNED", ...connection, settings: { denyTools: ["set_tenant"] } } },
+      defaultTenant: "pinned",
+    });
+    const { server } = fakeServer();
+    const guarded = createGuardedServer(server, new ToolAccess(tenantManager));
+    guarded.registerTool("set_tenant", {}, async () => {
+      tenantManager.setActiveTenant("dev");
+      return { content: [] };
+    });
+    const handler = (server.registerTool as unknown as ReturnType<typeof vi.fn>).mock.calls[0][2] as () => Promise<{ isError?: boolean }>;
+    expect((await handler()).isError).toBe(true);
+    expect(tenantManager.getActiveTenantKey()).toBe("pinned");
+  });
+
   it("the registerTool return value is passed through", () => {
     const tenantManager = new TenantManager(config);
     const { server, handles } = fakeServer();
