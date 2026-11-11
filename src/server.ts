@@ -4,29 +4,48 @@ import { Auth } from "./core/auth.js";
 import { ODataClient } from "./core/odata-client.js";
 import { ToolAccess } from "./core/tool-access.js";
 import { createGuardedServer } from "./core/guarded-server.js";
+import { validateTenantConfig } from "./core/config.js";
 import { allModules } from "./modules/all.js";
 import { SERVER_VERSION } from "./version.js";
+import { CsrfTokenCache } from "./core/csrf-cache.js";
+import { LOCAL_PRINCIPAL, type Principal, type TokenProvider } from "./core/extension-points.js";
 import type { ModuleContext, TenantConfig } from "./core/types.js";
 
 /**
  * Builds the MCP server with every module registered through the read-only
  * guard. `odataClient` replaces the HTTP client, for evals against mock data.
  * It also replaces ODataClient's write guard, so it must never be a client
- * that can reach a tenant.
+ * that can reach a tenant. `tokenProvider` replaces the OAuth client
+ * credentials default; `principal` is who the server belongs to.
  */
 export function buildServer(
   config: TenantConfig,
-  options: { odataClient?: ODataClient } = {}
-): { server: McpServer; tenantManager: TenantManager } {
-  const tenantManager = new TenantManager(config);
-  const odataClient = options.odataClient ?? new ODataClient(new Auth(), tenantManager);
+  options: {
+    odataClient?: ODataClient;
+    tokenProvider?: TokenProvider;
+    principal?: Principal;
+    csrfCache?: CsrfTokenCache;
+  } = {}
+): { server: McpServer; tenantManager: TenantManager; odataClient: ODataClient } {
+  const tenantManager = new TenantManager(validateTenantConfig(config, "server config"));
+  const principal = options.principal ?? LOCAL_PRINCIPAL;
+  const odataClient =
+    options.odataClient ??
+    new ODataClient(options.tokenProvider ?? new Auth(), tenantManager, {
+      principal,
+      csrfCache: options.csrfCache,
+    });
 
   const server = new McpServer({ name: "mcp-ci", version: SERVER_VERSION });
   const guardedServer = createGuardedServer(server, new ToolAccess(tenantManager));
-  const context: ModuleContext = { tenantManager, odataClient };
+  const context: ModuleContext = {
+    tenantManager,
+    odataClient,
+    principal,
+  };
 
   for (const mod of allModules) {
     mod.register(guardedServer, context);
   }
-  return { server, tenantManager };
+  return { server, tenantManager, odataClient };
 }

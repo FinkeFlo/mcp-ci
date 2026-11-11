@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ODataClient } from "../odata-client.js";
 import { Auth } from "../auth.js";
 import { TenantManager } from "../tenant-manager.js";
+import { CsrfTokenCache } from "../csrf-cache.js";
 import type { TenantConfig } from "../types.js";
 
 const testConfig: TenantConfig = {
@@ -414,5 +415,81 @@ describe("ODataClient on a read-only tenant", () => {
     tenantManager.setActiveTenant("prod");
     await expect(client.delete("/api/v1/IntegrationPackages('x')")).rejects.toThrow("read-only");
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("ODataClient cache keys and principal", () => {
+  const alice = { subject: "alice", roles: [], claims: {} };
+  const bob = { subject: "bob", roles: [], claims: {} };
+  const twoUrls: TenantConfig = {
+    tenants: {
+      one: {
+        name: "ONE", apiUrl: "https://one.example.com", oauthUrl: "https://one.example.com/oauth/token",
+        clientId: "shared-id", clientSecret: "s", settings: { readOnly: false },
+      },
+      two: {
+        name: "TWO", apiUrl: "https://two.example.com", oauthUrl: "https://two.example.com/oauth/token",
+        clientId: "shared-id", clientSecret: "s", settings: { readOnly: false },
+      },
+    },
+    defaultTenant: "one",
+  };
+  const tokenProvider = () => ({ getToken: vi.fn().mockResolvedValue("mock-token") });
+  const csrfFetchUrls = (spy: { mock: { calls: unknown[][] } }) =>
+    spy.mock.calls
+      .filter((call) => ((call[1] as RequestInit).headers as Record<string, string>)["X-CSRF-Token"] === "Fetch")
+      .map((call) => call[0]);
+  const mockFetch = () =>
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const headers = (init as RequestInit).headers as Record<string, string>;
+      return headers["X-CSRF-Token"] === "Fetch"
+        ? ({ ok: true, headers: new Headers({ "X-CSRF-Token": "csrf" }) } as Response)
+        : ({ ok: true, text: async () => "" } as Response);
+    });
+
+  beforeEach(() => vi.restoreAllMocks());
+
+  it("does not share a CSRF token between tenants with the same client id but different URLs", async () => {
+    const fetchSpy = mockFetch();
+    const tenantManager = new TenantManager(twoUrls);
+    const client = new ODataClient(tokenProvider(), tenantManager);
+    await client.post("/api/v1/X", {});
+    tenantManager.setActiveTenant("two");
+    await client.post("/api/v1/X", {});
+    expect(csrfFetchUrls(fetchSpy)).toEqual(["https://one.example.com/api/v1/", "https://two.example.com/api/v1/"]);
+  });
+
+  it("does not share a CSRF token between principals that share a cache", async () => {
+    const fetchSpy = mockFetch();
+    const csrfCache = new CsrfTokenCache();
+    const forAlice = new ODataClient(tokenProvider(), new TenantManager(twoUrls), { principal: alice, csrfCache });
+    const forBob = new ODataClient(tokenProvider(), new TenantManager(twoUrls), { principal: bob, csrfCache });
+    await forAlice.post("/api/v1/X", {});
+    await forBob.post("/api/v1/X", {});
+    expect(csrfFetchUrls(fetchSpy)).toHaveLength(2);
+  });
+
+  it("shares a CSRF token for the same tenant and the same subject", async () => {
+    const fetchSpy = mockFetch();
+    const csrfCache = new CsrfTokenCache();
+    const first = new ODataClient(tokenProvider(), new TenantManager(twoUrls), { principal: alice, csrfCache });
+    const second = new ODataClient(tokenProvider(), new TenantManager(twoUrls), { principal: { ...alice }, csrfCache });
+    await first.post("/api/v1/X", {});
+    await second.post("/api/v1/X", {});
+    expect(csrfFetchUrls(fetchSpy)).toHaveLength(1);
+  });
+
+  it("asks the token provider for the client's own principal on every request kind", async () => {
+    mockFetch();
+    const provider = tokenProvider();
+    const tenantManager = new TenantManager(twoUrls);
+    const client = new ODataClient(provider, tenantManager, { principal: bob });
+    await client.post("/api/v1/X", {});
+    await client.getValue("/api/v1/Y");
+    expect(provider.getToken.mock.calls.length).toBeGreaterThan(0);
+    for (const call of provider.getToken.mock.calls) {
+      expect(call[0]).toBe(tenantManager.getActiveTenant());
+      expect(call[1]).toBe(bob);
+    }
   });
 });
