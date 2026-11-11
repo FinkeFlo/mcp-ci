@@ -11,7 +11,10 @@ export interface Principal {
   claims: Record<string, unknown>;
 }
 
-/** Resolves the tenant configuration one principal may use. */
+/**
+ * Resolves the tenant configuration one principal may use. Over HTTP it runs on
+ * every request, so a session notices a changed config; cache inside when it is slow.
+ */
 export interface ConfigSource {
   resolve(principal: Principal): Promise<TenantConfig>;
 }

@@ -134,6 +134,7 @@ export async function startHttpServer(options: HttpServerOptions): Promise<Runni
             id,
             subject: principal.subject,
             roles: rolesKey(principal.roles),
+            configKey: session!.configKey,
             server: session!.server,
             transport,
           });
@@ -183,8 +184,17 @@ export async function startHttpServer(options: HttpServerOptions): Promise<Runni
     const session = registry.get(header);
     if (!session) return reply(res, 404, "Session not found");
     if (session.subject !== principal.subject) return reply(res, 403, "Forbidden");
-    if (session.roles !== rolesKey(principal.roles)) {
-      // The session still holds the config of the old roles. End it, so the client starts a new one.
+    // The session still holds the config it started with. When the person's roles or the
+    // config resolved for them changed, end it, so the client starts a new one.
+    let changed = session.roles !== rolesKey(principal.roles);
+    if (!changed) {
+      try {
+        changed = (await factory.resolveConfigKey(principal)) !== session.configKey;
+      } catch {
+        return reply(res, 503, "Service unavailable");
+      }
+    }
+    if (changed) {
       await session.server.close().catch(() => undefined);
       return reply(res, 403, "Forbidden");
     }

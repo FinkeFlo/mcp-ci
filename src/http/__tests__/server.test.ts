@@ -439,4 +439,58 @@ describe("review fixes", () => {
     const again = await open(server.url, "token-any");
     expect(again.reply.status).toBe(200);
   });
+
+  it("refuses and ends a session when the config source returns another config for the same roles", async () => {
+    let group = "alice";
+    const authenticator: Authenticator = {
+      authenticate: async () => ({ subject: "alice", roles: [], claims: { group } }),
+    };
+    const source: ConfigSource = {
+      resolve: async (principal) => configs[principal.claims.group as string] as TenantConfig,
+    };
+    const { server } = await start({ authenticator, configSource: source });
+    const { sessionId } = await open(server.url, "token-any");
+    expect((await rpc(server.url, "token-any", sessionId, "tools/list")).status).toBe(200);
+    group = "bob";
+    expect((await rpc(server.url, "token-any", sessionId, "tools/list")).status).toBe(403);
+    await vi.waitFor(() => expect(server.sessionCount()).toBe(0));
+    const again = await open(server.url, "token-any");
+    expect(again.reply.status).toBe(200);
+    expect(await toolText(server.url, "token-any", again.sessionId, "get_tenant")).toContain("b_ro");
+  });
+
+  it("keeps a session when the config only differs in key order", async () => {
+    let reversed = false;
+    const alice = configs.alice as TenantConfig;
+    const source: ConfigSource = {
+      resolve: async () =>
+        reversed
+          ? { defaultTenant: alice.defaultTenant, tenants: { a_ro: alice.tenants.a_ro, a_rw: alice.tenants.a_rw } }
+          : alice,
+    };
+    const { server } = await start({ configSource: source });
+    const { sessionId } = await open(server.url, "token-alice");
+    reversed = true;
+    expect((await rpc(server.url, "token-alice", sessionId, "tools/list")).status).toBe(200);
+    expect(server.sessionCount()).toBe(1);
+  });
+
+  it("answers 503 without details and keeps the session when the config source fails on a later request", async () => {
+    let fail = false;
+    const source: ConfigSource = {
+      resolve: async () => {
+        if (fail) throw new Error("secret-xyz");
+        return configs.alice as TenantConfig;
+      },
+    };
+    const { server } = await start({ configSource: source });
+    const { sessionId } = await open(server.url, "token-alice");
+    fail = true;
+    const reply = await rpc(server.url, "token-alice", sessionId, "tools/list");
+    expect(reply.status).toBe(503);
+    expect(reply.text).not.toContain("secret-xyz");
+    expect(server.sessionCount()).toBe(1);
+    fail = false;
+    expect((await rpc(server.url, "token-alice", sessionId, "tools/list")).status).toBe(200);
+  });
 });

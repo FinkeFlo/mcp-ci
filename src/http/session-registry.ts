@@ -11,6 +11,8 @@ export interface RegisteredSession {
   subject: string;
   /** The principal's roles when the session started, as one comparable string (see `rolesKey`). */
   roles: string;
+  /** The `configKey` of the config the session was built from. */
+  configKey: string;
   server: McpServer;
   transport: WebStandardStreamableHTTPServerTransport;
   /** Requests and streams currently open on this session. */

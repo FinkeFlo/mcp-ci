@@ -105,7 +105,7 @@ const server = await startHttpServer({
 ```
 
 - A request without valid authentication gets 401. A session belongs to the subject that created it; another subject gets 403. A person with no tenant gets 403, a failing `ConfigSource` 503.
-- Sessions are held in memory: run one instance, or route each session to the same instance (sticky sessions). A session keeps the config it was created with. If the person's roles change, the next request gets 403 and the session ends, so the client starts a new one; an invalid identity is refused on the next request.
+- Sessions are held in memory: run one instance, or route each session to the same instance (sticky sessions). A session keeps the config it was created with. Every request resolves the config again; if the person's roles or their config changed, the request gets 403 and the session ends, so the client starts a new one. An invalid identity is refused on the next request. Because `ConfigSource.resolve` runs on every request, cache inside it when it is slow.
 - TLS, Host and Origin checks and rate limits belong in front of the server. Per-person tokens towards SAP need your own `TokenProvider`; the default uses the tenant's OAuth client for everyone.
 
 ## Development

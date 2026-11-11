@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createSessionFactory } from "../session-factory.js";
+import { configKey, createSessionFactory } from "../session-factory.js";
 import { NoTenantsError } from "../config.js";
 import { classifyTool } from "../tool-access.js";
 import { connectClient } from "../../__tests__/helpers/mcp-client.js";
@@ -286,5 +286,23 @@ describe("session factory", () => {
       });
       await expect(factory.createSession(alice)).rejects.toThrow("backend down");
     });
+  });
+});
+
+describe("configKey", () => {
+  const config: TenantConfig = { tenants: { a: tenant("a", { readOnly: true }) }, defaultTenant: "a" };
+
+  it("ignores key order and undefined fields", () => {
+    const reordered = { defaultTenant: "a", tenants: { a: { ...tenant("a", { readOnly: true }), extra: undefined } } };
+    expect(configKey(reordered as TenantConfig)).toBe(configKey(config));
+  });
+
+  it("changes with any setting", () => {
+    const writable: TenantConfig = { tenants: { a: tenant("a", { readOnly: false }) }, defaultTenant: "a" };
+    expect(configKey(writable)).not.toBe(configKey(config));
+  });
+
+  it("does not contain the client secret", () => {
+    expect(configKey(config)).not.toContain("secret");
   });
 });

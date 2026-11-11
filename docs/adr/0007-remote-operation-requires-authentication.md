@@ -36,15 +36,19 @@ that caller every tenant it is configured for.
 - The request handed to the transport has `Authorization`, `Proxy-Authorization` and `Cookie`
   removed, and the core forwards no `authInfo`, because tool handlers can read that request. Only
   the authenticator sees the credential. The library writes no log output.
-- A session also remembers the roles its principal had when it started. A later request whose
-  authenticated roles differ gets 403 and ends the session, so the client starts a new one with the
-  config of the new roles. Without this, a demoted person would keep the old config for as long as
-  the session stays active.
+- A session also remembers the roles its principal had when it started and a hash of the config it
+  was built from. Every later request resolves the config again for the authenticated principal. If
+  the roles or the config changed, the request gets 403 and the session ends, so the client starts a
+  new one with the new config. This also covers a `ConfigSource` that reads claims, not only roles.
+  Without this, a demoted person would keep the old config for as long as the session stays active.
+  When the config source fails on such a request, the answer is 503 and the session stays.
 
 ## Consequences
 
 - TLS, Host and Origin checks and rate limits belong to the deployment (a proxy in front); the
   loopback default is the only protection the core adds.
 - Sessions live in memory, so one instance or sticky routing (ADR 0006).
-- The authenticator runs on every request, so a slow identity provider slows every call; caching
-  belongs in the authenticator.
+- The authenticator and `ConfigSource.resolve` run on every request, so a slow identity provider or
+  config source slows every call; caching belongs in the authenticator and the config source.
+- Sessions are an interim design. Rebuilding the server per request, without sessions, would remove
+  this check altogether; that needs `set_tenant` replaced first (#43).
